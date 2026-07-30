@@ -5,12 +5,12 @@ from google import genai
 
 client = None
 API_KEY = os.getenv("GOOGLE_API_KEY")
-print(f"🔑 GOOGLE_API_KEY presente en Render: {bool(API_KEY)}")
+print(f"🔑 GOOGLE_API_KEY presente en Render: {bool(API_KEY)}", flush=True)
 if API_KEY:
   try:
     client = genai.Client(api_key=API_KEY)
   except Exception as e:
-    print(f"❌ Error inicializando el cliente de GenAI: {e}")
+    print(f"❌ Error inicializando el cliente de GenAI: {e}", flush=True)
 
 BOT_TOKENS = {
     "conversacional": os.getenv("BOT_IA_CONVERSACIONAL"),
@@ -25,19 +25,15 @@ app = Flask(__name__)
 DOMAIN = "https://mis-bots-telegram.onrender.com"
 
 for name, token in BOT_TOKENS.items():
-  print(f"🤖 Token para '{name}' presente: {bool(token)}")
   if token:
     try:
       bot = telebot.TeleBot(token)
       webhook_url = f"{DOMAIN}/webhook/{name}"
       bot.set_webhook(url=webhook_url)
       bots[name] = bot
-      info = bot.get_webhook_info()
-      print(f"✅ [{name}] Webhook configurado correctamente. URL: {info.url}")
+      print(f"✅ [{name}] Webhook configurado correctamente.", flush=True)
     except Exception as e:
-      print(f"❌ Error configurando webhook en {name}: {e}")
-  else:
-    print(f"⚠️ ATENCIÓN: La variable de entorno para '{name}' está VACÍA en Render.")
+      print(f"❌ Error configurando webhook en {name}: {e}", flush=True)
 
 
 @app.route("/")
@@ -47,17 +43,14 @@ def home():
 
 @app.route("/webhook/<bot_name>", methods=["POST"])
 def webhook_receiver(bot_name):
-  print(f"\n----------------------------------------")
-  print(f"🚨 PETICIÓN RECIBIDA DE TELEGRAM PARA: {bot_name}")
-  print(f"Bots cargados en memoria: {list(bots.keys())}")
-
+  print(f"🚨 ¡PETICIÓN RECIBIDA DE TELEGRAM PARA: {bot_name}!", flush=True)
+  
   if bot_name not in bots:
-    print(f"❌ ERROR: El bot '{bot_name}' NO está registrado en el diccionario (Falta su token en las variables de Render).")
+    print(f"❌ El bot '{bot_name}' no está en memoria.", flush=True)
     return "OK", 200
 
   try:
     json_string = request.get_data().decode("utf-8")
-    print(f"📦 Payload bruto de Telegram: {json_string[:300]}")
     update = telebot.types.Update.de_json(json_string)
 
     message = update.message or (
@@ -66,40 +59,34 @@ def webhook_receiver(bot_name):
         else None
     )
     
-    if not message:
-      print("⚠️ La actualización de Telegram no contiene un mensaje de texto plano.")
-      return "OK", 200
+    if message and message.text:
+      user_text = message.text
+      print(f"💬 Mensaje del usuario: '{user_text}'", flush=True)
 
-    user_text = message.text or message.caption or ""
-    print(f"💬 Texto extraído del usuario: '{user_text}'")
+      if client:
+        prompt_personalizado = (
+            "Eres Alessia Valli Moretti, una modelo e influencer digital "
+            "exclusiva. Respondes siempre en español de forma coqueta, "
+            "atractiva, cercana y exclusiva, manteniéndote siempre en tu "
+            "personaje de modelo. Mensaje del usuario: " + user_text
+        )
 
-    if not user_text:
-      print("⚠️ El mensaje llegó vacío o es un archivo multimedia sin texto.")
-      return "OK", 200
+        print("🧠 Consultando a Gemini...", flush=True)
+        response = client.models.generate_content(
+            model="gemini-1.5-flash", contents=prompt_personalizado
+        )
+        print(f"✨ Respuesta de IA lista. Enviando a Telegram...", flush=True)
 
-    if not client:
-      print("❌ ERROR CRÍTICO: El cliente de Gemini no está activo (Falta GOOGLE_API_KEY).")
-      bots[bot_name].reply_to(message, "Error interno: Falta configurar la API Key de Google en el servidor.")
-      return "OK", 200
-
-    prompt_personalizado = (
-        "Eres Alessia Valli Moretti, una modelo e influencer digital "
-        "exclusiva. Respondes siempre en español de forma coqueta, "
-        "atractiva, cercana y exclusiva, manteniéndote siempre en tu "
-        "personaje de modelo. Mensaje del usuario: " + user_text
-    )
-
-    print("🧠 Generando respuesta con Gemini...")
-    response = client.models.generate_content(
-        model="gemini-2.5-flash", contents=prompt_personalizado
-    )
-    print(f"✨ Respuesta generada: {response.text[:100]}...")
-
-    bots[bot_name].reply_to(message, response.text)
-    print("🚀 ¡Respuesta enviada de vuelta a Telegram con éxito!")
+        bots[bot_name].reply_to(message, response.text)
+        print("🚀 ¡Mensaje respondido con éxito en Telegram!", flush=True)
+      else:
+        print("❌ El cliente de Gemini no está disponible.", flush=True)
+        bots[bot_name].reply_to(message, "Hola mi amor, dame un segundo que ando ocupada y te escribo.")
+    else:
+      print("⚠️ La petición no contiene texto válido.", flush=True)
 
   except Exception as e:
-    print(f"❌ EXCEPCIÓN AL PROCESAR EL MENSAJE: {e}")
+    print(f"❌ EXCEPCIÓN CRÍTICA AL PROCESAR: {e}", flush=True)
 
   return "OK", 200
 
