@@ -3,15 +3,10 @@ from flask import Flask, request
 import telebot
 import google.generativeai as genai
 
-print("🚀 Iniciando script de Flask...")
-
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 if GOOGLE_API_KEY:
   genai.configure(api_key=GOOGLE_API_KEY)
   model = genai.GenerativeModel("gemini-1.5-flash")
-  print("✅ Gemini configurado correctamente.")
-else:
-  print("❌ ¡Falta la GOOGLE_API_KEY en las variables de entorno!")
 
 BOT_TOKENS = {
     "conversacional": os.getenv("BOT_IA_CONVERSACIONAL"),
@@ -33,21 +28,17 @@ for name, token in BOT_TOKENS.items():
       webhook_url = f"{DOMAIN}/webhook/{name}"
       bot.set_webhook(url=webhook_url)
       bots[name] = bot
-      print(f"👉 WEBHOOK ACTIVADO para: {name}")
     except Exception as e:
-      print(f"❌ Error en bot {name}: {e}")
-  else:
-    print(f"⚠️ ALERTA: No se encontró token para: {name.upper()}")
+      print(f"Error en {name}: {e}")
 
 
 @app.route("/")
 def home():
-  return "Servidor de bots activo y escuchando."
+  return "Servidor activo."
 
 
 @app.route("/webhook/<bot_name>", methods=["POST"])
-def receive_update(bot_name):
-  print(f"🔔 ¡Petición entrante de Telegram para el bot: {bot_name}!")
+def webhook_receiver(bot_name):
   if bot_name in bots and request.is_json:
     try:
       json_string = request.get_data().decode("utf-8")
@@ -60,7 +51,6 @@ def receive_update(bot_name):
       )
       if message and GOOGLE_API_KEY:
         user_text = message.text if message.text else ""
-        print(f"💬 Mensaje del usuario: {user_text}")
         if user_text:
           prompt_personalizado = (
               "Eres Alessia Valli Moretti, una modelo e influencer digital"
@@ -70,10 +60,10 @@ def receive_update(bot_name):
               f" {user_text}"
           )
           response = model.generate_content(prompt_personalizado)
+          # Aquí usa el chat.id automático del usuario que mandó el mensaje
           bots[bot_name].reply_to(message, response.text)
-          print("✨ ¡Respuesta enviada con éxito a Telegram!")
     except Exception as e:
-      print(f"❌ Error al procesar mensaje: {e}")
+      print(f"Error procesando mensaje: {e}")
 
   return "OK", 200
 
