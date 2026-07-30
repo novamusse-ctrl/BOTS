@@ -20,21 +20,25 @@ bots = {}
 app = Flask(__name__)
 DOMAIN = "https://mis-bots-telegram.onrender.com"
 
-# Forzar el registro y verificar el estado real con Telegram
+# Forzar el registro y sacar el informe de errores directo desde Telegram
 for name, token in BOT_TOKENS.items():
   if token:
     try:
       bot = telebot.TeleBot(token)
-      bot.remove_webhook()
       webhook_url = f"{DOMAIN}/webhook/{name}"
-      res = bot.set_webhook(url=webhook_url)
+      bot.set_webhook(url=webhook_url)
       bots[name] = bot
       
-      # Consultar directamente a Telegram si aceptó el webhook
+      # Consultar el estado real en los servidores de Telegram
       info = bot.get_webhook_info()
-      print(f"✅ [{name}] Webhook configurado. URL en Telegram: {info.url} | Pendientes: {info.pending_update_count}")
+      print(f"--- ESTADO DEL BOT: {name} ---")
+      print(f"URL configurada en Telegram: {info.url}")
+      print(f"Actualizaciones pendientes: {info.pending_update_count}")
+      print(f"Último error registrado por Telegram: {info.last_error_message or 'Ninguno (Conexión limpia)'}")
+      print(f"Fecha del último error: {info.last_error_date or 'N/A'}")
+      print("-----------------------------------")
     except Exception as e:
-      print(f"❌ Error configurando webhook en {name}: {e}")
+      print(f"❌ Error crítico en {name}: {e}")
 
 
 @app.route("/")
@@ -58,7 +62,7 @@ def webhook_receiver(bot_name):
       if message and client:
         user_text = message.text if message.text else ""
         if user_text:
-          print(f"💬 Mensaje válido de usuario: {user_text}")
+          print(f"💬 Mensaje de usuario: {user_text}")
           prompt_personalizado = (
               "Eres Alessia Valli Moretti, una modelo e influencer digital"
               " exclusiva. Respondes siempre en español de forma coqueta,"
@@ -70,7 +74,7 @@ def webhook_receiver(bot_name):
               model="gemini-2.5-flash", contents=prompt_personalizado
           )
           bots[bot_name].reply_to(message, response.text)
-          print("✨ ¡Respuesta enviada de vuelta a Telegram con éxito!")
+          print("✨ ¡Respuesta enviada a Telegram con éxito!")
     except Exception as e:
       print(f"❌ Error procesando el mensaje: {e}")
 
