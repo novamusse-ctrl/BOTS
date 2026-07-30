@@ -3,10 +3,15 @@ from flask import Flask, request
 import telebot
 import google.generativeai as genai
 
+print("🚀 Iniciando script de Flask...")
+
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 if GOOGLE_API_KEY:
   genai.configure(api_key=GOOGLE_API_KEY)
   model = genai.GenerativeModel("gemini-1.5-flash")
+  print("✅ Gemini configurado correctamente.")
+else:
+  print("❌ ¡Falta la GOOGLE_API_KEY en las variables de entorno!")
 
 BOT_TOKENS = {
     "conversacional": os.getenv("BOT_IA_CONVERSACIONAL"),
@@ -18,33 +23,35 @@ BOT_TOKENS = {
 
 bots = {}
 app = Flask(__name__)
-
 DOMAIN = "https://mis-bots-telegram.onrender.com"
 
-# Configurar y verificar webhooks al arrancar
+# Inicializar bots y registrar webhooks de forma segura
 for name, token in BOT_TOKENS.items():
   if token:
-    bot = telebot.TeleBot(token)
     try:
+      bot = telebot.TeleBot(token)
       bot.remove_webhook()
       webhook_url = f"{DOMAIN}/webhook/{name}"
-      res = bot.set_webhook(url=webhook_url)
-      print(f"👉 [HOOK OK] Webhook configurado para {name}: {res}")
+      bot.set_webhook(url=webhook_url)
+      bots[name] = bot
+      print(f"👉 WEBHOOK ACTIVADO para: {name}")
     except Exception as e:
-      print(f"❌ [ERROR HOOK] Falló {name}: {e}")
-    bots[name] = bot
+      print(f"❌ Error en bot {name}: {e}")
+  else:
+    print(
+        f"⚠️ ALERTA: No se encontró token para la variable de entorno:"
+        f" {name.upper()}"
+    )
 
 
 @app.route("/")
 def home():
-  return "Bots de Telegram operando con Webhooks al 100%."
+  return "Servidor de bots activo y escuchando."
 
 
 @app.route("/webhook/<bot_name>", methods=["POST"])
 def receive_update(bot_name):
-  print(
-      f"🔔 ¡ALERTA! Telegram mandó una petición al bot: {bot_name}"
-  )  # Este chivato debe salir en Render sí o sí
+  print(f"🔔 ¡Petición entrante de Telegram para el bot: {bot_name}!")
   if bot_name in bots and request.is_json:
     try:
       json_string = request.get_data().decode("utf-8")
@@ -57,7 +64,7 @@ def receive_update(bot_name):
       )
       if message and GOOGLE_API_KEY:
         user_text = message.text if message.text else ""
-        print(f"💬 Mensaje recibido de usuario: {user_text}")
+        print(f"💬 Mensaje del usuario: {user_text}")
         if user_text:
           prompt_personalizado = (
               "Eres Alessia Valli Moretti, una modelo e influencer digital"
@@ -68,9 +75,9 @@ def receive_update(bot_name):
           )
           response = model.generate_content(prompt_personalizado)
           bots[bot_name].reply_to(message, response.text)
-          print("✨ ¡Respuesta enviada de vuelta a Telegram con éxito!")
+          print("✨ ¡Respuesta enviada con éxito a Telegram!")
     except Exception as e:
-      print(f"❌ Error procesando el mensaje: {e}")
+      print(f"❌ Error al procesar mensaje: {e}")
 
   return "OK", 200
 
@@ -78,3 +85,4 @@ def receive_update(bot_name):
 if __name__ == "__main__":
   port = int(os.environ.get("PORT", 10000))
   app.run(host="0.0.0.0", port=port)
+      
