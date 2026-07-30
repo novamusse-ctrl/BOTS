@@ -1,10 +1,19 @@
 import os
 from flask import Flask, request
 import telebot
-import requests
+from google import genai
 
 API_KEY = os.getenv("GOOGLE_API_KEY")
 print(f"🔑 GOOGLE_API_KEY presente en Render: {bool(API_KEY)}", flush=True)
+
+# Inicializamos el cliente oficial de Google GenAI (compatible con las nuevas claves)
+ai_client = None
+if API_KEY:
+  try:
+    ai_client = genai.Client(api_key=API_KEY)
+    print("✅ Cliente oficial de Google GenAI conectado.", flush=True)
+  except Exception as e:
+    print(f"❌ Error al inicializar cliente GenAI: {e}", flush=True)
 
 BOT_TOKENS = {
     "conversacional": os.getenv("BOT_IA_CONVERSACIONAL"),
@@ -57,7 +66,7 @@ def webhook_receiver(bot_name):
       user_text = message.text
       print(f"💬 Mensaje del usuario: '{user_text}'", flush=True)
 
-      if API_KEY:
+      if ai_client:
         prompt_personalizado = (
             "Eres Alessia Valli Moretti, una modelo e influencer digital "
             "exclusiva. Respondes siempre en español de forma coqueta, "
@@ -65,44 +74,24 @@ def webhook_receiver(bot_name):
             "personaje de modelo. Mensaje del usuario: " + user_text
         )
 
-        print("🧠 Consultando a Gemini vía REST (Header Auth)...", flush=True)
-        # Endpoint limpio sin ?key= en la URL
-        url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
-        
-        # Pasamos la llave de forma segura en los headers
-        headers = {
-            "Content-Type": "application/json",
-            "x-goog-api-key": API_KEY
-        }
-        
-        payload = {
-            "contents": [{
-                "parts": [{"text": prompt_personalizado}]
-            }]
-        }
-        
-        res = requests.post(url, json=payload, headers=headers, timeout=15)
-        print(f"📥 Código HTTP recibido de Google: {res.status_code}", flush=True)
-        
+        print("🧠 Consultando a Gemini mediante el SDK oficial...", flush=True)
         try:
-          data = res.json()
-        except Exception:
-          data = {"error": f"Respuesta no es JSON válido: {res.text}"}
-
-        if res.status_code == 200:
-          try:
-            ai_response = data["candidates"][0]["content"]["parts"][0]["text"]
-            print(f"✨ Respuesta de IA lista. Enviando a Telegram...", flush=True)
-            bots[bot_name].reply_to(message, ai_response)
-            print("🚀 ¡Mensaje respondido con éxito en Telegram!", flush=True)
-          except Exception as parse_err:
-            print(f"❌ Error al extraer texto del JSON: {parse_err} | JSON: {data}", flush=True)
-            bots[bot_name].reply_to(message, "Mi amor, me quedé pensando algo muy travieso, dímelo otra vez.")
-        else:
-          print(f"❌ ERROR DE LA API DE GOOGLE: {data}", flush=True)
-          bots[bot_name].reply_to(message, f"⚠️ Error de autenticación Google ({res.status_code}). Verifica tu GOOGLE_API_KEY en Render.")
+          # Llamada nativa con el SDK oficial
+          response = ai_client.models.generate_content(
+              model="gemini-1.5-flash",
+              contents=prompt_personalizado,
+          )
+          ai_response = response.text
+          
+          print(f"✨ Respuesta de IA lista. Enviando a Telegram...", flush=True)
+          bots[bot_name].reply_to(message, ai_response)
+          print("🚀 ¡Mensaje respondido con éxito en Telegram!", flush=True)
+          
+        except Exception as api_err:
+          print(f"❌ ERROR DE LA API DE GOOGLE (SDK): {api_err}", flush=True)
+          bots[bot_name].reply_to(message, "Mi amor, tuve un pequeño parpadeo técnico con la red, dímelo otra vez.")
       else:
-        print("❌ La API Key no está disponible.", flush=True)
+        print("❌ El cliente de AI no está configurado.", flush=True)
     else:
       print("⚠️ La petición no contiene texto válido.", flush=True)
 
