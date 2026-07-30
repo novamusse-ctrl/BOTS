@@ -3,13 +3,11 @@ from flask import Flask, request
 import telebot
 import google.generativeai as genai
 
-# Configuración de Gemini
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 if GOOGLE_API_KEY:
   genai.configure(api_key=GOOGLE_API_KEY)
   model = genai.GenerativeModel("gemini-1.5-flash")
 
-# Diccionario de tus bots
 BOT_TOKENS = {
     "conversacional": os.getenv("BOT_IA_CONVERSACIONAL"),
     "elite": os.getenv("BOT_MEMBRESIA_ELITE"),
@@ -21,7 +19,6 @@ BOT_TOKENS = {
 bots = {}
 app = Flask(__name__)
 
-# Inicializar bots y configurar webhooks automáticos hacia Render
 DOMAIN = "https://mis-bots-telegram.onrender.com"
 
 for name, token in BOT_TOKENS.items():
@@ -43,17 +40,16 @@ def home():
 
 @app.route("/webhook/<bot_name>", methods=["POST"])
 def receive_update(bot_name):
-  if bot_name in bots and request.headers.get("content-type") == (
-      "application/json"
-  ):
-    json_string = request.get_data().decode("utf-8")
-    update = telebot.types.Update.de_json(json_string)
+  if bot_name in bots and request.is_json:
+    try:
+      json_string = request.get_data().decode("utf-8")
+      update = telebot.types.Update.de_json(json_string)
 
-    # Procesar mensaje según el bot que corresponda
-    message = update.message or update.callback_query.message
-    if message and GOOGLE_API_KEY:
-      try:
-        user_text = update.message.text if update.message else ""
+      message = update.message or (
+          update.callback_query.message if update.callback_query else None
+      )
+      if message and GOOGLE_API_KEY:
+        user_text = message.text if message.text else ""
         if user_text:
           prompt_personalizado = (
               "Eres Alessia Valli Moretti, una modelo e influencer digital"
@@ -63,11 +59,10 @@ def receive_update(bot_name):
               f" {user_text}"
           )
           response = model.generate_content(prompt_personalizado)
-          bots[bot_name].reply_to(update.message, response.text)
-      except Exception as e:
-        print(f"Error generando respuesta con Gemini: {e}")
+          bots[bot_name].reply_to(message, response.text)
+    except Exception as e:
+      print(f"Error procesando webhook en {bot_name}: {e}")
 
-    return "", 200
   return "OK", 200
 
 
