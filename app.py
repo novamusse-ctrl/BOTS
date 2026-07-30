@@ -1,16 +1,12 @@
 import os
 from flask import Flask, request
 import telebot
-from google import genai
+import google.generativeai as genai
 
-client = None
 API_KEY = os.getenv("GOOGLE_API_KEY")
 print(f"🔑 GOOGLE_API_KEY presente en Render: {bool(API_KEY)}", flush=True)
 if API_KEY:
-  try:
-    client = genai.Client(api_key=API_KEY)
-  except Exception as e:
-    print(f"❌ Error inicializando el cliente de GenAI: {e}", flush=True)
+  genai.configure(api_key=API_KEY)
 
 BOT_TOKENS = {
     "conversacional": os.getenv("BOT_IA_CONVERSACIONAL"),
@@ -63,7 +59,7 @@ def webhook_receiver(bot_name):
       user_text = message.text
       print(f"💬 Mensaje del usuario: '{user_text}'", flush=True)
 
-      if client:
+      if API_KEY:
         prompt_personalizado = (
             "Eres Alessia Valli Moretti, una modelo e influencer digital "
             "exclusiva. Respondes siempre en español de forma coqueta, "
@@ -72,16 +68,15 @@ def webhook_receiver(bot_name):
         )
 
         print("🧠 Consultando a Gemini...", flush=True)
-        response = client.models.generate_content(
-            model="gemini-1.5-flash", contents=prompt_personalizado
-        )
+        model = genai.GenerativeModel("gemini-1.5-flash")
+        response = model.generate_content(prompt_personalizado)
         print(f"✨ Respuesta de IA lista. Enviando a Telegram...", flush=True)
 
         bots[bot_name].reply_to(message, response.text)
         print("🚀 ¡Mensaje respondido con éxito en Telegram!", flush=True)
       else:
-        print("❌ El cliente de Gemini no está disponible.", flush=True)
-        bots[bot_name].reply_to(message, "Hola mi amor, dame un segundo que ando ocupada y te escribo.")
+        print("❌ La API Key no está disponible.", flush=True)
+        bots[bot_name].reply_to(message, "Hola mi amor, dame un segundo que ando ocupada.")
     else:
       print("⚠️ La petición no contiene texto válido.", flush=True)
 
