@@ -1,15 +1,15 @@
 import os
 from flask import Flask, request
 import telebot
-import google.generativeai as genai
+from google import genai
 
 print("🚀 Iniciando script de Flask...")
 
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+client = None
 if GOOGLE_API_KEY:
-  genai.configure(api_key=GOOGLE_API_KEY)
-  model = genai.GenerativeModel("gemini-1.5-flash")
-  print("✅ Gemini configurado correctamente.")
+  client = genai.Client(api_key=GOOGLE_API_KEY)
+  print("✅ Cliente de Gemini configurado correctamente.")
 else:
   print("❌ ¡Falta la GOOGLE_API_KEY en las variables de entorno!")
 
@@ -25,7 +25,6 @@ bots = {}
 app = Flask(__name__)
 DOMAIN = "https://mis-bots-telegram.onrender.com"
 
-# Inicializar bots y registrar webhooks de forma segura
 for name, token in BOT_TOKENS.items():
   if token:
     try:
@@ -38,10 +37,7 @@ for name, token in BOT_TOKENS.items():
     except Exception as e:
       print(f"❌ Error en bot {name}: {e}")
   else:
-    print(
-        f"⚠️ ALERTA: No se encontró token para la variable de entorno:"
-        f" {name.upper()}"
-    )
+    print(f"⚠️ ALERTA: No se encontró token para: {name.upper()}")
 
 
 @app.route("/")
@@ -62,7 +58,7 @@ def receive_update(bot_name):
           if update.callback_query
           else None
       )
-      if message and GOOGLE_API_KEY:
+      if message and client:
         user_text = message.text if message.text else ""
         print(f"💬 Mensaje del usuario: {user_text}")
         if user_text:
@@ -73,7 +69,9 @@ def receive_update(bot_name):
               " personaje de modelo. Mensaje del usuario:"
               f" {user_text}"
           )
-          response = model.generate_content(prompt_personalizado)
+          response = client.models.generate_content(
+              model="gemini-1.5-flash", contents=prompt_personalizado
+          )
           bots[bot_name].reply_to(message, response.text)
           print("✨ ¡Respuesta enviada con éxito a Telegram!")
     except Exception as e:
@@ -85,4 +83,4 @@ def receive_update(bot_name):
 if __name__ == "__main__":
   port = int(os.environ.get("PORT", 10000))
   app.run(host="0.0.0.0", port=port)
-      
+    
