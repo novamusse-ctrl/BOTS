@@ -65,30 +65,42 @@ def webhook_receiver(bot_name):
             "personaje de modelo. Mensaje del usuario: " + user_text
         )
 
-        print("🧠 Consultando a Gemini vía REST...", flush=True)
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={API_KEY}"
-        headers = {"Content-Type": "application/json"}
+        print("🧠 Consultando a Gemini vía REST (Header Auth)...", flush=True)
+        # Endpoint limpio sin ?key= en la URL
+        url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
+        
+        # Pasamos la llave de forma segura en los headers
+        headers = {
+            "Content-Type": "application/json",
+            "x-goog-api-key": API_KEY
+        }
+        
         payload = {
             "contents": [{
                 "parts": [{"text": prompt_personalizado}]
             }]
         }
         
-        res = requests.post(url, json=payload, headers=headers, timeout=10)
-        data = res.json()
+        res = requests.post(url, json=payload, headers=headers, timeout=15)
+        print(f"📥 Código HTTP recibido de Google: {res.status_code}", flush=True)
         
+        try:
+          data = res.json()
+        except Exception:
+          data = {"error": f"Respuesta no es JSON válido: {res.text}"}
+
         if res.status_code == 200:
           try:
             ai_response = data["candidates"][0]["content"]["parts"][0]["text"]
-          except Exception:
-            ai_response = "Hola mi amor, tuve un pequeño desliz pero ya estoy aquí."
-          
-          print(f"✨ Respuesta lista. Enviando a Telegram...", flush=True)
-          bots[bot_name].reply_to(message, ai_response)
-          print("🚀 ¡Mensaje respondido con éxito en Telegram!", flush=True)
+            print(f"✨ Respuesta de IA lista. Enviando a Telegram...", flush=True)
+            bots[bot_name].reply_to(message, ai_response)
+            print("🚀 ¡Mensaje respondido con éxito en Telegram!", flush=True)
+          except Exception as parse_err:
+            print(f"❌ Error al extraer texto del JSON: {parse_err} | JSON: {data}", flush=True)
+            bots[bot_name].reply_to(message, "Mi amor, me quedé pensando algo muy travieso, dímelo otra vez.")
         else:
-          print(f"❌ Error de la API de Google: {data}", flush=True)
-          bots[bot_name].reply_to(message, "Hola mi amor, espérame un segundito que ando ocupada.")
+          print(f"❌ ERROR DE LA API DE GOOGLE: {data}", flush=True)
+          bots[bot_name].reply_to(message, f"⚠️ Error de autenticación Google ({res.status_code}). Verifica tu GOOGLE_API_KEY en Render.")
       else:
         print("❌ La API Key no está disponible.", flush=True)
     else:
