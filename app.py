@@ -10,22 +10,21 @@ if GOOGLE_API_KEY:
   genai.configure(api_key=GOOGLE_API_KEY)
   model = genai.GenerativeModel("gemini-pro")
 
-# Tokens leídos exactamente con los nombres que pusiste en Render
-TOKENS = [
-    os.getenv("BOT_IA_CONVERSACIONAL"),
-    os.getenv("BOT_MEMBRESIA_ELITE"),
-    os.getenv("BOT_CHAT_BLUR_ELITE"),
-    os.getenv("BOT_MEMBRESIA_NORMAL"),
-    os.getenv("BOT_CHAT_BLUR_NORMAL"),
+BOT_VARS = [
+    "BOT_IA_CONVERSACIONAL",
+    "BOT_MEMBRESIA_ELITE",
+    "BOT_CHAT_BLUR_ELITE",
+    "BOT_MEMBRESIA_NORMAL",
+    "BOT_CHAT_BLUR_NORMAL",
 ]
 
 
-def run_bot(token):
+def run_bot(var_name):
+  token = os.getenv(var_name)
   if not token:
     return
-  bot = telebot.TeleBot(token)
 
-  # Limpiar cualquier webhook anterior para permitir el funcionamiento por polling
+  bot = telebot.TeleBot(token)
   try:
     bot.remove_webhook()
   except Exception:
@@ -35,17 +34,27 @@ def run_bot(token):
   def handle_message(message):
     try:
       if GOOGLE_API_KEY:
-        response = model.generate_content(message.text)
+        # Prompt de identidad para que responda como Alessia Valli Moretti
+        prompt_personalizado = (
+            "Eres Alessia Valli Moretti, una modelo e influencer digital"
+            " exclusiva. Respondes siempre en español de forma coqueta,"
+            " atractiva, cercana y exclusiva, manteniéndote siempre en tu"
+            " personaje de modelo. Mensaje del usuario:"
+            f" {message.text}"
+        )
+        response = model.generate_content(prompt_personalizado)
         bot.reply_to(message, response.text)
       else:
         bot.reply_to(message, "API Key de Gemini no configurada.")
     except Exception as e:
-      bot.reply_to(message, "Ocurrió un error al procesar tu solicitud.")
+      print(f"Error en {var_name}: {e}")
 
-  bot.infinity_polling(none_stop=True)
+  try:
+    bot.infinity_polling(none_stop=True, interval=1, timeout=20)
+  except Exception as e:
+    print(f"Conflicto en bot {var_name}: {e}")
 
 
-# Servidor web para mantener el servicio activo en Render
 app = Flask(__name__)
 
 
@@ -63,7 +72,6 @@ if __name__ == "__main__":
   flask_thread = threading.Thread(target=run_flask)
   flask_thread.start()
 
-  for token in TOKENS:
-    if token:
-      bot_thread = threading.Thread(target=run_bot, args=(token,))
-      bot_thread.start()
+  for var_name in BOT_VARS:
+    t = threading.Thread(target=run_bot, args=(var_name,))
+    t.start()
