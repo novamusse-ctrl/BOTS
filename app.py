@@ -3,7 +3,6 @@ from flask import Flask, request
 import telebot
 from google import genai
 
-# Inicializar cliente moderno de Google GenAI
 client = None
 API_KEY = os.getenv("GOOGLE_API_KEY")
 if API_KEY:
@@ -21,28 +20,32 @@ bots = {}
 app = Flask(__name__)
 DOMAIN = "https://mis-bots-telegram.onrender.com"
 
-# Configurar webhooks automáticamente al arrancar
+# Forzar el registro y verificar el estado real con Telegram
 for name, token in BOT_TOKENS.items():
   if token:
     try:
       bot = telebot.TeleBot(token)
       bot.remove_webhook()
       webhook_url = f"{DOMAIN}/webhook/{name}"
-      bot.set_webhook(url=webhook_url)
+      res = bot.set_webhook(url=webhook_url)
       bots[name] = bot
-      print(f"Webhook configurado para: {name}")
+      
+      # Consultar directamente a Telegram si aceptó el webhook
+      info = bot.get_webhook_info()
+      print(f"✅ [{name}] Webhook configurado. URL en Telegram: {info.url} | Pendientes: {info.pending_update_count}")
     except Exception as e:
-      print(f"Error en {name}: {e}")
+      print(f"❌ Error configurando webhook en {name}: {e}")
 
 
 @app.route("/")
 def home():
-  return "Servidor de bots activo y actualizado."
+  return "Servidor de bots activo."
 
 
 @app.route("/webhook/<bot_name>", methods=["POST"])
 def webhook_receiver(bot_name):
-  if bot_name in bots and request.is_json:
+  print(f"🚨 ¡PETICIÓN POST RECIBIDA DE TELEGRAM EN: {bot_name}!")
+  if bot_name in bots:
     try:
       json_string = request.get_data().decode("utf-8")
       update = telebot.types.Update.de_json(json_string)
@@ -55,7 +58,7 @@ def webhook_receiver(bot_name):
       if message and client:
         user_text = message.text if message.text else ""
         if user_text:
-          print(f"Mensaje recibido en {bot_name}: {user_text}")
+          print(f"💬 Mensaje válido de usuario: {user_text}")
           prompt_personalizado = (
               "Eres Alessia Valli Moretti, una modelo e influencer digital"
               " exclusiva. Respondes siempre en español de forma coqueta,"
@@ -63,16 +66,13 @@ def webhook_receiver(bot_name):
               " personaje de modelo. Mensaje del usuario:"
               f" {user_text}"
           )
-
-          # Llamada con la API moderna de google-genai
           response = client.models.generate_content(
               model="gemini-2.5-flash", contents=prompt_personalizado
           )
-
           bots[bot_name].reply_to(message, response.text)
-          print("¡Respuesta enviada de vuelta a Telegram con éxito!")
+          print("✨ ¡Respuesta enviada de vuelta a Telegram con éxito!")
     except Exception as e:
-      print(f"Error procesando el mensaje: {e}")
+      print(f"❌ Error procesando el mensaje: {e}")
 
   return "OK", 200
 
