@@ -1,12 +1,10 @@
 import os
 from flask import Flask, request
 import telebot
-import google.generativeai as genai
+import requests
 
 API_KEY = os.getenv("GOOGLE_API_KEY")
 print(f"🔑 GOOGLE_API_KEY presente en Render: {bool(API_KEY)}", flush=True)
-if API_KEY:
-  genai.configure(api_key=API_KEY)
 
 BOT_TOKENS = {
     "conversacional": os.getenv("BOT_IA_CONVERSACIONAL"),
@@ -67,16 +65,32 @@ def webhook_receiver(bot_name):
             "personaje de modelo. Mensaje del usuario: " + user_text
         )
 
-        print("🧠 Consultando a Gemini...", flush=True)
-        model = genai.GenerativeModel("gemini-1.5-flash")
-        response = model.generate_content(prompt_personalizado)
-        print(f"✨ Respuesta de IA lista. Enviando a Telegram...", flush=True)
-
-        bots[bot_name].reply_to(message, response.text)
-        print("🚀 ¡Mensaje respondido con éxito en Telegram!", flush=True)
+        print("🧠 Consultando a Gemini vía REST...", flush=True)
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={API_KEY}"
+        headers = {"Content-Type": "application/json"}
+        payload = {
+            "contents": [{
+                "parts": [{"text": prompt_personalizado}]
+            }]
+        }
+        
+        res = requests.post(url, json=payload, headers=headers, timeout=10)
+        data = res.json()
+        
+        if res.status_code == 200:
+          try:
+            ai_response = data["candidates"][0]["content"]["parts"][0]["text"]
+          except Exception:
+            ai_response = "Hola mi amor, tuve un pequeño desliz pero ya estoy aquí."
+          
+          print(f"✨ Respuesta lista. Enviando a Telegram...", flush=True)
+          bots[bot_name].reply_to(message, ai_response)
+          print("🚀 ¡Mensaje respondido con éxito en Telegram!", flush=True)
+        else:
+          print(f"❌ Error de la API de Google: {data}", flush=True)
+          bots[bot_name].reply_to(message, "Hola mi amor, espérame un segundito que ando ocupada.")
       else:
         print("❌ La API Key no está disponible.", flush=True)
-        bots[bot_name].reply_to(message, "Hola mi amor, dame un segundo que ando ocupada.")
     else:
       print("⚠️ La petición no contiene texto válido.", flush=True)
 
