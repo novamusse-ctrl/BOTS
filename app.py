@@ -1,4 +1,5 @@
 import os
+import traceback
 from flask import Flask, request
 import telebot
 from google import genai
@@ -6,7 +7,6 @@ from google import genai
 API_KEY = os.getenv("GOOGLE_API_KEY")
 print(f"🔑 GOOGLE_API_KEY presente en Render: {bool(API_KEY)}", flush=True)
 
-# Inicializamos el cliente oficial de Google GenAI (compatible con las nuevas claves)
 ai_client = None
 if API_KEY:
   try:
@@ -76,7 +76,6 @@ def webhook_receiver(bot_name):
 
         print("🧠 Consultando a Gemini mediante el SDK oficial...", flush=True)
         try:
-          # Llamada nativa con el SDK oficial
           response = ai_client.models.generate_content(
               model="gemini-1.5-flash",
               contents=prompt_personalizado,
@@ -88,8 +87,11 @@ def webhook_receiver(bot_name):
           print("🚀 ¡Mensaje respondido con éxito en Telegram!", flush=True)
           
         except Exception as api_err:
-          print(f"❌ ERROR DE LA API DE GOOGLE (SDK): {api_err}", flush=True)
-          bots[bot_name].reply_to(message, "Mi amor, tuve un pequeño parpadeo técnico con la red, dímelo otra vez.")
+          # IMPRIME EL TRAZAJE COMPLETO Y EL ERROR EXACTO EN LOS LOGS Y EN EL CHAT
+          error_detalle = str(api_err)
+          print(f"❌ ERROR EXACTO DE GOOGLE SDK: {error_detalle}", flush=True)
+          traceback.print_exc()
+          bots[bot_name].reply_to(message, f"🚨 ERROR SDK: {error_detalle}")
       else:
         print("❌ El cliente de AI no está configurado.", flush=True)
     else:
