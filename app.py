@@ -1,15 +1,15 @@
 import os
 from flask import Flask, request
 import telebot
-from google import genai
+import google.generativeai as genai
 
 print("🚀 Iniciando script de Flask...")
 
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-client = None
 if GOOGLE_API_KEY:
-  client = genai.Client(api_key=GOOGLE_API_KEY)
-  print("✅ Cliente de Gemini configurado correctamente.")
+  genai.configure(api_key=GOOGLE_API_KEY)
+  model = genai.GenerativeModel("gemini-1.5-flash")
+  print("✅ Gemini configurado correctamente.")
 else:
   print("❌ ¡Falta la GOOGLE_API_KEY en las variables de entorno!")
 
@@ -58,7 +58,7 @@ def receive_update(bot_name):
           if update.callback_query
           else None
       )
-      if message and client:
+      if message and GOOGLE_API_KEY:
         user_text = message.text if message.text else ""
         print(f"💬 Mensaje del usuario: {user_text}")
         if user_text:
@@ -69,9 +69,7 @@ def receive_update(bot_name):
               " personaje de modelo. Mensaje del usuario:"
               f" {user_text}"
           )
-          response = client.models.generate_content(
-              model="gemini-1.5-flash", contents=prompt_personalizado
-          )
+          response = model.generate_content(prompt_personalizado)
           bots[bot_name].reply_to(message, response.text)
           print("✨ ¡Respuesta enviada con éxito a Telegram!")
     except Exception as e:
@@ -83,4 +81,3 @@ def receive_update(bot_name):
 if __name__ == "__main__":
   port = int(os.environ.get("PORT", 10000))
   app.run(host="0.0.0.0", port=port)
-    
