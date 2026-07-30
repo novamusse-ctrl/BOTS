@@ -21,15 +21,17 @@ app = Flask(__name__)
 
 DOMAIN = "https://mis-bots-telegram.onrender.com"
 
+# Configurar y verificar webhooks al arrancar
 for name, token in BOT_TOKENS.items():
   if token:
     bot = telebot.TeleBot(token)
     try:
       bot.remove_webhook()
       webhook_url = f"{DOMAIN}/webhook/{name}"
-      bot.set_webhook(url=webhook_url)
+      res = bot.set_webhook(url=webhook_url)
+      print(f"👉 [HOOK OK] Webhook configurado para {name}: {res}")
     except Exception as e:
-      print(f"Error configurando webhook para {name}: {e}")
+      print(f"❌ [ERROR HOOK] Falló {name}: {e}")
     bots[name] = bot
 
 
@@ -40,16 +42,22 @@ def home():
 
 @app.route("/webhook/<bot_name>", methods=["POST"])
 def receive_update(bot_name):
+  print(
+      f"🔔 ¡ALERTA! Telegram mandó una petición al bot: {bot_name}"
+  )  # Este chivato debe salir en Render sí o sí
   if bot_name in bots and request.is_json:
     try:
       json_string = request.get_data().decode("utf-8")
       update = telebot.types.Update.de_json(json_string)
 
       message = update.message or (
-          update.callback_query.message if update.callback_query else None
+          update.callback_query.message
+          if update.callback_query
+          else None
       )
       if message and GOOGLE_API_KEY:
         user_text = message.text if message.text else ""
+        print(f"💬 Mensaje recibido de usuario: {user_text}")
         if user_text:
           prompt_personalizado = (
               "Eres Alessia Valli Moretti, una modelo e influencer digital"
@@ -60,8 +68,9 @@ def receive_update(bot_name):
           )
           response = model.generate_content(prompt_personalizado)
           bots[bot_name].reply_to(message, response.text)
+          print("✨ ¡Respuesta enviada de vuelta a Telegram con éxito!")
     except Exception as e:
-      print(f"Error procesando webhook en {bot_name}: {e}")
+      print(f"❌ Error procesando el mensaje: {e}")
 
   return "OK", 200
 
