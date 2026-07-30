@@ -4,11 +4,11 @@ from flask import Flask
 import telebot
 import google.generativeai as genai
 
-# Configuración de la API de Gemini
+# Configuración de Gemini
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 if GOOGLE_API_KEY:
   genai.configure(api_key=GOOGLE_API_KEY)
-  model = genai.GenerativeModel("gemini-pro")
+  model = genai.GenerativeModel("gemini-1.5-flash")
 
 BOT_VARS = [
     "BOT_IA_CONVERSACIONAL",
@@ -22,6 +22,7 @@ BOT_VARS = [
 def run_bot(var_name):
   token = os.getenv(var_name)
   if not token:
+    print(f"Token no encontrado para {var_name}")
     return
 
   bot = telebot.TeleBot(token)
@@ -34,7 +35,6 @@ def run_bot(var_name):
   def handle_message(message):
     try:
       if GOOGLE_API_KEY:
-        # Prompt de identidad para que responda como Alessia Valli Moretti
         prompt_personalizado = (
             "Eres Alessia Valli Moretti, una modelo e influencer digital"
             " exclusiva. Respondes siempre en español de forma coqueta,"
@@ -47,12 +47,14 @@ def run_bot(var_name):
       else:
         bot.reply_to(message, "API Key de Gemini no configurada.")
     except Exception as e:
-      print(f"Error en {var_name}: {e}")
+      print(f"Error procesando mensaje en {var_name}: {e}")
 
-  try:
-    bot.infinity_polling(none_stop=True, interval=1, timeout=20)
-  except Exception as e:
-    print(f"Conflicto en bot {var_name}: {e}")
+  print(f"Bot {var_name} iniciado correctamente.")
+  while True:
+    try:
+      bot.infinity_polling(none_stop=True, interval=2, timeout=30)
+    except Exception as e:
+      print(f"Reconectando bot {var_name} por error: {e}")
 
 
 app = Flask(__name__)
@@ -60,7 +62,7 @@ app = Flask(__name__)
 
 @app.route("/")
 def home():
-  return "Bots de Telegram operando correctamente."
+  return "Bots de Telegram operando al 100%."
 
 
 def run_flask():
@@ -69,9 +71,12 @@ def run_flask():
 
 
 if __name__ == "__main__":
+  # Iniciar servidor Flask en segundo plano
   flask_thread = threading.Thread(target=run_flask)
   flask_thread.start()
 
+  # Iniciar cada bot de Telegram en su propio hilo independiente
   for var_name in BOT_VARS:
     t = threading.Thread(target=run_bot, args=(var_name,))
+    t.daemon = True
     t.start()
