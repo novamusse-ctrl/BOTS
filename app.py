@@ -1,12 +1,13 @@
 import os
 from flask import Flask, request
 import telebot
-import google.generativeai as genai
+from google import genai
 
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-if GOOGLE_API_KEY:
-  genai.configure(api_key=GOOGLE_API_KEY)
-  model = genai.GenerativeModel("gemini-1.5-flash")
+# Inicializar cliente moderno de Google GenAI
+client = None
+API_KEY = os.getenv("GOOGLE_API_KEY")
+if API_KEY:
+  client = genai.Client(api_key=API_KEY)
 
 BOT_TOKENS = {
     "conversacional": os.getenv("BOT_IA_CONVERSACIONAL"),
@@ -20,6 +21,7 @@ bots = {}
 app = Flask(__name__)
 DOMAIN = "https://mis-bots-telegram.onrender.com"
 
+# Configurar webhooks automáticamente al arrancar
 for name, token in BOT_TOKENS.items():
   if token:
     try:
@@ -28,13 +30,14 @@ for name, token in BOT_TOKENS.items():
       webhook_url = f"{DOMAIN}/webhook/{name}"
       bot.set_webhook(url=webhook_url)
       bots[name] = bot
+      print(f"Webhook configurado para: {name}")
     except Exception as e:
       print(f"Error en {name}: {e}")
 
 
 @app.route("/")
 def home():
-  return "Servidor activo."
+  return "Servidor de bots activo y actualizado."
 
 
 @app.route("/webhook/<bot_name>", methods=["POST"])
@@ -49,9 +52,10 @@ def webhook_receiver(bot_name):
           if update.callback_query
           else None
       )
-      if message and GOOGLE_API_KEY:
+      if message and client:
         user_text = message.text if message.text else ""
         if user_text:
+          print(f"Mensaje recibido en {bot_name}: {user_text}")
           prompt_personalizado = (
               "Eres Alessia Valli Moretti, una modelo e influencer digital"
               " exclusiva. Respondes siempre en español de forma coqueta,"
@@ -59,11 +63,16 @@ def webhook_receiver(bot_name):
               " personaje de modelo. Mensaje del usuario:"
               f" {user_text}"
           )
-          response = model.generate_content(prompt_personalizado)
-          # Aquí usa el chat.id automático del usuario que mandó el mensaje
+
+          # Llamada con la API moderna de google-genai
+          response = client.models.generate_content(
+              model="gemini-2.5-flash", contents=prompt_personalizado
+          )
+
           bots[bot_name].reply_to(message, response.text)
+          print("¡Respuesta enviada de vuelta a Telegram con éxito!")
     except Exception as e:
-      print(f"Error procesando mensaje: {e}")
+      print(f"Error procesando el mensaje: {e}")
 
   return "OK", 200
 
