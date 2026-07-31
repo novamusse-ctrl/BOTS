@@ -2,18 +2,18 @@ import os
 import traceback
 from flask import Flask, request
 import telebot
-from google import genai
+from groq import Groq
 
-API_KEY = os.getenv("GOOGLE_API_KEY")
-print(f"🔑 GOOGLE_API_KEY presente en Render: {bool(API_KEY)}", flush=True)
+API_KEY = os.getenv("GROQ_API_KEY")
+print(f"🔑 GROQ_API_KEY presente en Render: {bool(API_KEY)}", flush=True)
 
 ai_client = None
 if API_KEY:
   try:
-    ai_client = genai.Client(api_key=API_KEY)
-    print("✅ Cliente oficial de Google GenAI conectado.", flush=True)
+    ai_client = Groq(api_key=API_KEY)
+    print("✅ Cliente oficial de Groq conectado.", flush=True)
   except Exception as e:
-    print(f"❌ Error al inicializar cliente GenAI: {e}", flush=True)
+    print(f"❌ Error al inicializar cliente Groq: {e}", flush=True)
 
 BOT_TOKENS = {
     "conversacional": os.getenv("BOT_IA_CONVERSACIONAL"),
@@ -41,7 +41,7 @@ for name, token in BOT_TOKENS.items():
 
 @app.route("/")
 def home():
-  return "Servidor de bots activo."
+  return "Servidor de bots activo con Groq."
 
 
 @app.route("/webhook/<bot_name>", methods=["POST"])
@@ -67,31 +67,35 @@ def webhook_receiver(bot_name):
       print(f"💬 Mensaje del usuario: '{user_text}'", flush=True)
 
       if ai_client:
-        prompt_personalizado = (
-            "Eres Alessia Valli Moretti, una modelo e influencer digital "
-            "exclusiva. Respondes siempre en español de forma coqueta, "
-            "atractiva, cercana y exclusiva, manteniéndote siempre en tu "
-            "personaje de modelo. Mensaje del usuario: " + user_text
-        )
-
-        print("🧠 Consultando a Gemini mediante el SDK oficial...", flush=True)
+        print("🧠 Consultando a Groq (Llama 3)...", flush=True)
         try:
-          response = ai_client.models.generate_content(
-              model="gemini-1.5-flash",
-              contents=prompt_personalizado,
+          completion = ai_client.chat.completions.create(
+              model="llama-3.3-70b-versatile",
+              messages=[
+                  {
+                      "role": "system",
+                      "content": (
+                          "Eres Alessia Valli Moretti, una modelo e influencer "
+                          "digital exclusiva. Respondes siempre en español de forma "
+                          "coqueta, atractiva, cercana y exclusiva, manteniéndote "
+                          "siempre en tu personaje de modelo."
+                      ),
+                  },
+                  {"role": "user", "content": user_text},
+              ],
+              temperature=0.7,
           )
-          ai_response = response.text
+          ai_response = completion.choices[0].message.content
           
-          print(f"✨ Respuesta de IA lista. Enviando a Telegram...", flush=True)
+          print(f"✨ Respuesta lista. Enviando a Telegram...", flush=True)
           bots[bot_name].reply_to(message, ai_response)
           print("🚀 ¡Mensaje respondido con éxito en Telegram!", flush=True)
           
         except Exception as api_err:
-          # IMPRIME EL TRAZAJE COMPLETO Y EL ERROR EXACTO EN LOS LOGS Y EN EL CHAT
           error_detalle = str(api_err)
-          print(f"❌ ERROR EXACTO DE GOOGLE SDK: {error_detalle}", flush=True)
+          print(f"❌ ERROR EXACTO DE GROQ: {error_detalle}", flush=True)
           traceback.print_exc()
-          bots[bot_name].reply_to(message, f"🚨 ERROR SDK: {error_detalle}")
+          bots[bot_name].reply_to(message, f"🚨 ERROR GROQ: {error_detalle}")
       else:
         print("❌ El cliente de AI no está configurado.", flush=True)
     else:
