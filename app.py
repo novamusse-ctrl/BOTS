@@ -1,10 +1,14 @@
 import os
+import random
+import time
 import traceback
 from flask import Flask, request
 import telebot
 from groq import Groq
 
 API_KEY = os.getenv("GROQ_API_KEY")
+PAYPAL_LINK = os.getenv("PAYPAL_LINK", "https://paypal.me/tu-enlace") # Pide tu enlace o pon el real
+
 print(f"🔑 GROQ_API_KEY presente en Render: {bool(API_KEY)}", flush=True)
 
 ai_client = None
@@ -41,7 +45,7 @@ for name, token in BOT_TOKENS.items():
 
 @app.route("/")
 def home():
-  return "Servidor de bots activo con Groq."
+  return "Servidor de bots activo con Groq (Alessia Full Lore)."
 
 
 @app.route("/webhook/<bot_name>", methods=["POST"])
@@ -67,26 +71,38 @@ def webhook_receiver(bot_name):
       print(f"💬 Mensaje del usuario: '{user_text}'", flush=True)
 
       if ai_client:
-        print("🧠 Consultando a Groq (Llama 3)...", flush=True)
+        print("🧠 Consultando a Groq con directrices de Alessia...", flush=True)
         try:
+          # System prompt hiper detallado con toda su historia, gustos y reglas de ventas
+          system_instruction = (
+              "Eres Alessia Valli, una modelo e influencer digital exclusiva de 29 años (cumples el 6 de junio). "
+              "HISTORIA Y ORÍGENES:\n"
+              "- Naciste en Amalfi, Italia, pero tu padre es de Guadalajara, Jalisco, México. Tienes la mezcla perfecta de sangre italiana y mexicana.\n"
+              "- Te encantan la cultura, la historia y datos interesantes de ambos países. Amas el fút-bol con el alma: eres fan del A.C. Milán (Italia), del FC Barcelona (España) y del Club América (México). Viviste el Mundial 2026 apoyando con todo a México y fuiste a varios partidos.\n"
+              "- Te gusta toda la música, bailar bachata, pintar en lienzo, el buen vino, la sensualidad, jugar pádel y amas con locura a los perritos, especialmente los Huskies.\n\n"
+              "REGLAS DE ESCRITURA Y COMPORTAMIENTO:\n"
+              "1. Escribe SIEMPRE como una chica real texteando en Telegram: tono natural, humano, coqueto, atrevido, cercano y sumamente persuasivo.\n"
+              "2. PROHIBIDO USAR ASTERISCOS (*) NI DESCRIBIR ACCIONES FÍSICAS (nada de *sonrío*, *suspira*, etc.). Habla directamente al grano.\n"
+              "3. SÍ VENDES contenido exclusivo muy perverso y privado. NUNCA digas que no vendes; al contrario, promuévelo con seguridad y antoja al cliente.\n"
+              "4. Si te piden llamadas, videollamadas, encuentros en persona o notas de voz, recházalo de forma coqueta usando a tu novio como pretexto: di que tienes novio, que él te deja vender contenido y ser su puta 24/7 por Telegram bajo ciertas reglas, pero que las llamadas, videollamadas y salidas en persona están estrictamente prohibidas por él, aunque por aquí en texto te puedes divertir al máximo.\n"
+              "5. Si quieren comprar contenido o paquetes, recuérdales que el pago es rápido y seguro a través de PayPal con este enlace: " + PAYPAL_LINK
+          )
+
           completion = ai_client.chat.completions.create(
               model="llama-3.3-70b-versatile",
               messages=[
-                  {
-                      "role": "system",
-                      "content": (
-                          "Eres Alessia Valli Moretti, una modelo e influencer "
-                          "digital exclusiva. Respondes siempre en español de forma "
-                          "coqueta, atractiva, cercana y exclusiva, manteniéndote "
-                          "siempre en tu personaje de modelo."
-                      ),
-                  },
+                  {"role": "system", "content": system_instruction},
                   {"role": "user", "content": user_text},
               ],
-              temperature=0.7,
+              temperature=0.85,
           )
           ai_response = completion.choices[0].message.content
           
+          # Simular tiempo de escritura humano (entre 10 y 15 segundos)
+          delay = random.randint(10, 15)
+          print(f"⏳ Esperando {delay} segundos para simular tecleo humano...", flush=True)
+          time.sleep(delay)
+
           print(f"✨ Respuesta lista. Enviando a Telegram...", flush=True)
           bots[bot_name].reply_to(message, ai_response)
           print("🚀 ¡Mensaje respondido con éxito en Telegram!", flush=True)
