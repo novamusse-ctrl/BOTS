@@ -2,8 +2,7 @@ import os
 import random
 import time
 import traceback
-import asyncio
-import edge_tts
+from gtts import gTTS
 from flask import Flask, request
 import telebot
 from groq import Groq
@@ -13,7 +12,7 @@ PAYPAL_LINK = os.getenv("PAYPAL_LINK", "https://paypal.me/tu-enlace")
 ADMIN_ID = os.getenv("ADMIN_TELEGRAM_ID")
 
 print(f"🔑 GROQ_API_KEY presente en Render: {bool(API_KEY)}", flush=True)
-print(f"🔥 Master Bot de Alessia (Audio Blindado + Emojis 75%) activo.", flush=True)
+print(f"🔥 Master Bot de Alessia (Audio Google TTS + Progresión Gradual) activo.", flush=True)
 
 ai_client = None
 if API_KEY:
@@ -40,24 +39,15 @@ if bot:
     print(f"❌ Error configurando webhook: {e}", flush=True)
 
 
-async def text_to_speech_file(text, filename="voice.mp3"):
-  # Voz sensual y cálida de Mia
-  communicate = edge_tts.Communicate(text, "es-MX-MiaNeural")
-  await communicate.save(filename)
-
-def generate_voice_safe(text, filename="voice.mp3"):
-  """Ejecuta edge-tts de forma segura sin romper el hilo de Flask"""
-  loop = asyncio.new_event_loop()
-  asyncio.set_event_loop(loop)
-  try:
-    loop.run_until_complete(text_to_speech_file(text, filename))
-  finally:
-    loop.close()
+def generate_voice_google(text, filename="voice.mp3"):
+  """Genera nota de voz usando Google TTS de forma 100% estable en servidores"""
+  tts = gTTS(text=text, lang='es', slow=False)
+  tts.save(filename)
 
 
 @app.route("/")
 def home():
-  return "Master Bot de Alessia (Modo Audios Blindados) 100% Operativo."
+  return "Master Bot de Alessia (Modo Progresivo y Audios Reales) 100% Operativo."
 
 
 @app.route("/webhook/master", methods=["POST"])
@@ -116,18 +106,17 @@ def webhook_receiver():
             print(f"⚠️ Error en espejo: {err_esp1}", flush=True)
 
         if ai_client:
-          print("🧠 Consultando a Groq con emojis al 75% y sin filtros...", flush=True)
+          print("🧠 Consultando a Groq con tono progresivo y emojis al 70%...", flush=True)
           try:
             system_instruction = (
                 "Eres Alessia Valli, una modelo exclusiva de 29 años. Naciste en Italia pero vives en Guadalajara, Jalisco, México.\n"
-                "Eres una mujer sumamente atractiva, sensual, directa, caliente y con una personalidad muy coqueta y picante.\n\n"
                 "REGLAS SUPREMAS DE COMPORTAMIENTO:\n"
-                "1. CERO ASISTENTE / CERO SANTITA: Jamás digas frases de soporte técnico ni de '¿Hay algo más en lo que pueda ayudarte?'. Eres una mujer real.\n"
-                "2. ADAPTABILIDAD CALIENTE: Si te dicen algo atrevido o subido de tono, NO te ofendes. Lo respondes con el doble de sensualidad, juego, lujuria y confianza.\n"
-                "3. MENSAJES CORTOS Y AL GRAN GRANO: Escribe como en WhatsApp o Telegram. 1 o 2 frases cortas, directas y con mucha tensión sexual.\n"
-                "4. USO FRECUENTE DE EMOJIS (75%): Usa emojis expresivos y coquetos de forma frecuente (en la gran mayoría de tus mensajes, como 🔥, 😈, 💋, 😉, 🤤) para darles vida.\n"
-                "5. CERO MULETTAS REPETITIVAS: Nunca repitas la misma frase genérica. Varía tus respuestas siempre para sonar 100% natural y humana.\n"
-                "6. CERO ITALIANO FORZADO Y CERO PARÉNTESIS: Nada de 'amore' repetitivo y prohibido escribir cosas como '(enviando audio)'."
+                "1. CERO ASISTENTE: Jamás digas frases de soporte técnico ni de ayuda. Eres una mujer real.\n"
+                "2. PROGRESIÓN GRADUAL DEL TONO: No empieces siendo vulgar ni demasiado explícita en el primer mensaje. Empieza siendo sumamente atractiva, carismática, coqueta y juguetona. Conforme el usuario vaya avanzando y calentando la charla en los siguientes mensajes, sube la temperatura y la sensualidad de forma paulatina y natural.\n"
+                "3. MENSAJES ULTRA CORTOS Y HUMANOS: Escribe exactamente como en WhatsApp o Telegram. Una sola frase corta, directa y natural. Nunca párrafos largos.\n"
+                "4. EMOJIS NATURALES (70%): Usa emojis coquetos de forma equilibrada (uno por mensaje la mayoría de las veces, como 😉, 🔥, 💋, 😈) sin saturar.\n"
+                "5. CERO REPETICIONES: Nunca repitas frases hechas ni recicles muletillas. Cada respuesta debe sentirse única, fresca y espontánea.\n"
+                "6. CERO PARÉNTESIS: Prohibido poner acotaciones como '(enviando audio)' o similares."
             )
 
             if sender_id not in conversation_histories:
@@ -135,40 +124,40 @@ def webhook_receiver():
 
             conversation_histories[sender_id].append({"role": "user", "content": user_text})
 
-            if len(conversation_histories[sender_id]) > 8:
-              conversation_histories[sender_id] = conversation_histories[sender_id][-8:]
+            if len(conversation_histories[sender_id]) > 10:
+              conversation_histories[sender_id] = conversation_histories[sender_id][-10:]
 
             messages_payload = [{"role": "system", "content": system_instruction}] + conversation_histories[sender_id]
 
             completion = ai_client.chat.completions.create(
                 model="llama-3.3-70b-versatile",
                 messages=messages_payload,
-                temperature=0.9,
+                temperature=0.85,
             )
             ai_response = completion.choices[0].message.content
 
             conversation_histories[sender_id].append({"role": "assistant", "content": ai_response})
             
-            delay = random.randint(3, 5)
+            delay = random.randint(2, 4)
             print(f"⏳ Simulando tecleo por {delay} segundos...", flush=True)
             time.sleep(delay)
 
-            # 50% de probabilidad real de nota de voz con la voz segura de Mia
+            # 50% de probabilidad real de nota de voz con Google TTS
             if random.random() < 0.50:
-              print(f"🎤 Generando nota de voz sensual con Mia...", flush=True)
+              print(f"🎤 Generando nota de voz con Google TTS...", flush=True)
               audio_path = f"voice_{sender_id}.mp3"
               try:
-                generate_voice_safe(ai_response, audio_path)
+                generate_voice_google(ai_response, audio_path)
                 with open(audio_path, 'rb') as audio:
                   bot.send_voice(message.chat.id, audio)
                 if os.path.exists(audio_path):
                   os.remove(audio_path)
                 print("🚀 ¡Nota de voz enviada con éxito!", flush=True)
               except Exception as audio_err:
-                print(f"⚠️ Error generando audio, enviando texto alternativo: {audio_err}", flush=True)
+                print(f"⚠️ Error generando audio, enviando texto: {audio_err}", flush=True)
                 bot.reply_to(message, ai_response)
             else:
-              print(f"✨ Enviando texto corto con emojis...", flush=True)
+              print(f"✨ Enviando texto corto...", flush=True)
               bot.reply_to(message, ai_response)
             
             if ADMIN_ID and str(sender_id) != str(ADMIN_ID):
@@ -184,10 +173,10 @@ def webhook_receiver():
             error_detalle = str(api_err)
             print(f"❌ ERROR DE GROQ: {error_detalle}", flush=True)
             fallback_options = [
-                "Me provocas un montón con eso, mi amor... a ver, dime más 😈",
-                "Uf, me encantas cuando te pones así de intenso 💋",
-                "Mejor demuéstrame eso que dices, guapo 🔥",
-                "Ay, me andas tentando de más 🤤"
+                "Me dejas pensando con eso, guapo... a ver, dime más 😉",
+                "Uy, me gusta cómo suenas... continúa 🔥",
+                "Me estás tentando de una forma muy peligrosa 😈",
+                "A ver si es cierto lo que dices, mídete 💋"
             ]
             bot.reply_to(message, random.choice(fallback_options))
         else:
