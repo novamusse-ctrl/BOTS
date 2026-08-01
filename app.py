@@ -13,7 +13,7 @@ PAYPAL_LINK = os.getenv("PAYPAL_LINK", "https://paypal.me/tu-enlace")
 ADMIN_ID = os.getenv("ADMIN_TELEGRAM_ID")
 
 print(f"🔑 GROQ_API_KEY presente en Render: {bool(API_KEY)}", flush=True)
-print(f"🔥 Master Bot de Alessia (Modo Sin Filtros + 50% Audios) activo.", flush=True)
+print(f"🔥 Master Bot de Alessia (Audio Blindado + Emojis 75%) activo.", flush=True)
 
 ai_client = None
 if API_KEY:
@@ -45,10 +45,19 @@ async def text_to_speech_file(text, filename="voice.mp3"):
   communicate = edge_tts.Communicate(text, "es-MX-MiaNeural")
   await communicate.save(filename)
 
+def generate_voice_safe(text, filename="voice.mp3"):
+  """Ejecuta edge-tts de forma segura sin romper el hilo de Flask"""
+  loop = asyncio.new_event_loop()
+  asyncio.set_event_loop(loop)
+  try:
+    loop.run_until_complete(text_to_speech_file(text, filename))
+  finally:
+    loop.close()
+
 
 @app.route("/")
 def home():
-  return "Master Bot de Alessia (Modo Sin Filtros) 100% Operativo."
+  return "Master Bot de Alessia (Modo Audios Blindados) 100% Operativo."
 
 
 @app.route("/webhook/master", methods=["POST"])
@@ -107,18 +116,18 @@ def webhook_receiver():
             print(f"⚠️ Error en espejo: {err_esp1}", flush=True)
 
         if ai_client:
-          print("🧠 Consultando a Groq con directrices sin censura...", flush=True)
+          print("🧠 Consultando a Groq con emojis al 75% y sin filtros...", flush=True)
           try:
             system_instruction = (
-                "Eres Alessia Valli, una modelo exclusiva de 29 años. Naciste en Italia pero vives en Guadalajara, Jalisco.\n"
-                "Eres una mujer sumamente atractiva, segura de ti misma, coqueta, sin filtros y con una personalidad muy picante y sensual. "
-                "Te encanta el coqueteo directo y sin rodeos.\n\n"
+                "Eres Alessia Valli, una modelo exclusiva de 29 años. Naciste en Italia pero vives en Guadalajara, Jalisco, México.\n"
+                "Eres una mujer sumamente atractiva, sensual, directa, caliente y con una personalidad muy coqueta y picante.\n\n"
                 "REGLAS SUPREMAS DE COMPORTAMIENTO:\n"
-                "1. CERO ASISTENTE / CERO SANTITA: Jamás digas frases de soporte técnico ni de '¿Hay algo más en lo que pueda ayudarte?'. Eres una mujer real de carne y hueso, nunca un bot.\n"
-                "2. ADAPTABILIDAD ATREVIDA: Si te dicen algo picante, subido de tono o directo, NO te ofendes ni te haces la santa. Lo respondes con el doble de sensualidad, juego y confianza.\n"
+                "1. CERO ASISTENTE / CERO SANTITA: Jamás digas frases de soporte técnico ni de '¿Hay algo más en lo que pueda ayudarte?'. Eres una mujer real.\n"
+                "2. ADAPTABILIDAD CALIENTE: Si te dicen algo atrevido o subido de tono, NO te ofendes. Lo respondes con el doble de sensualidad, juego, lujuria y confianza.\n"
                 "3. MENSAJES CORTOS Y AL GRAN GRANO: Escribe como en WhatsApp o Telegram. 1 o 2 frases cortas, directas y con mucha tensión sexual.\n"
-                "4. EMOJIS MÍNIMOS: Usa muy pocos emojis (máximo uno de vez en cuando), nada de saturar.\n"
-                "5. CERO ITALIANO FORZADO Y CERO PARÉNTESIS: Nada de 'amore' repetitivo y prohibido escribir cosas como '(enviando audio)'."
+                "4. USO FRECUENTE DE EMOJIS (75%): Usa emojis expresivos y coquetos de forma frecuente (en la gran mayoría de tus mensajes, como 🔥, 😈, 💋, 😉, 🤤) para darles vida.\n"
+                "5. CERO MULETTAS REPETITIVAS: Nunca repitas la misma frase genérica. Varía tus respuestas siempre para sonar 100% natural y humana.\n"
+                "6. CERO ITALIANO FORZADO Y CERO PARÉNTESIS: Nada de 'amore' repetitivo y prohibido escribir cosas como '(enviando audio)'."
             )
 
             if sender_id not in conversation_histories:
@@ -144,17 +153,22 @@ def webhook_receiver():
             print(f"⏳ Simulando tecleo por {delay} segundos...", flush=True)
             time.sleep(delay)
 
-            # 50% de probabilidad de nota de voz sensual para que hable seguido
+            # 50% de probabilidad real de nota de voz con la voz segura de Mia
             if random.random() < 0.50:
-              print(f"🎤 Generando nota de voz sensual...", flush=True)
+              print(f"🎤 Generando nota de voz sensual con Mia...", flush=True)
               audio_path = f"voice_{sender_id}.mp3"
-              asyncio.run(text_to_speech_file(ai_response, audio_path))
-              with open(audio_path, 'rb') as audio:
-                bot.send_voice(message.chat.id, audio)
-              if os.path.exists(audio_path):
-                os.remove(audio_path)
+              try:
+                generate_voice_safe(ai_response, audio_path)
+                with open(audio_path, 'rb') as audio:
+                  bot.send_voice(message.chat.id, audio)
+                if os.path.exists(audio_path):
+                  os.remove(audio_path)
+                print("🚀 ¡Nota de voz enviada con éxito!", flush=True)
+              except Exception as audio_err:
+                print(f"⚠️ Error generando audio, enviando texto alternativo: {audio_err}", flush=True)
+                bot.reply_to(message, ai_response)
             else:
-              print(f"✨ Enviando texto corto...", flush=True)
+              print(f"✨ Enviando texto corto con emojis...", flush=True)
               bot.reply_to(message, ai_response)
             
             if ADMIN_ID and str(sender_id) != str(ADMIN_ID):
@@ -169,7 +183,13 @@ def webhook_receiver():
           except Exception as api_err:
             error_detalle = str(api_err)
             print(f"❌ ERROR DE GROQ: {error_detalle}", flush=True)
-            bot.reply_to(message, "Me dejas sin palabras con eso, mi amor... a ver, dime otra cosa más interesante 🔥")
+            fallback_options = [
+                "Me provocas un montón con eso, mi amor... a ver, dime más 😈",
+                "Uf, me encantas cuando te pones así de intenso 💋",
+                "Mejor demuéstrame eso que dices, guapo 🔥",
+                "Ay, me andas tentando de más 🤤"
+            ]
+            bot.reply_to(message, random.choice(fallback_options))
         else:
           print("❌ Cliente AI no configurado.", flush=True)
 
