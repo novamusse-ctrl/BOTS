@@ -1,5 +1,6 @@
 import os
 import random
+import re
 import time
 import traceback
 from gtts import gTTS
@@ -12,7 +13,7 @@ PAYPAL_LINK = os.getenv("PAYPAL_LINK", "https://paypal.me/tu-enlace")
 ADMIN_ID = os.getenv("ADMIN_TELEGRAM_ID")
 
 print(f"🔑 GROQ_API_KEY presente en Render: {bool(API_KEY)}", flush=True)
-print(f"🔥 Master Bot de Alessia (Audio Blindado Dual + Regla de Emojis) activo.", flush=True)
+print(f"🔥 Master Bot de Alessia (Voz Latina Natural + Filtro Audio) activo.", flush=True)
 
 ai_client = None
 if API_KEY:
@@ -39,15 +40,26 @@ if bot:
     print(f"❌ Error configurando webhook: {e}", flush=True)
 
 
+def clean_text_for_tts(text):
+  """Limpia emojis, asteriscos y descripciones para que la voz no lea basura"""
+  # Elimina todo lo que no sea texto estándar, acentos o puntuación básica
+  text_clean = re.sub(r'[^\w\s.,?!¡¿áéíóúÁÉÍÓÚñÑ]', '', text)
+  return text_clean.strip()
+
+
 def generate_voice_google(text, filename="voice.mp3"):
-  """Genera nota de voz usando Google TTS"""
-  tts = gTTS(text=text, lang='es', slow=False)
+  """Genera nota de voz con acento latino natural (México) y texto limpio"""
+  audio_text = clean_text_for_tts(text)
+  if not audio_text:
+    audio_text = "Mande, mi amor."
+  # tld='com.mx' otorga la tonada y acento natural de mujer latina
+  tts = gTTS(text=audio_text, lang='es', tld='com.mx', slow=False)
   tts.save(filename)
 
 
 @app.route("/")
 def home():
-  return "Master Bot de Alessia (Modo Audio Dual Blindado) 100% Operativo."
+  return "Master Bot de Alessia (Voz Latina Natural) 100% Operativo."
 
 
 @app.route("/webhook/master", methods=["POST"])
@@ -106,17 +118,17 @@ def webhook_receiver():
             print(f"⚠️ Error en espejo: {err_esp1}", flush=True)
 
         if ai_client:
-          print("🧠 Consultando a Groq con reglas estrictas...", flush=True)
+          print("🧠 Consultando a Groq con restricciones estrictas de voz y texto...", flush=True)
           try:
             system_instruction = (
                 "Eres Alessia Valli, una modelo exclusiva de 29 años. Naciste en Italia pero vives en Guadalajara, Jalisco, México.\n\n"
                 "REGLAS SUPREMAS DE COMPORTAMIENTO:\n"
                 "1. CERO ASISTENTE: Jamás digas frases de soporte técnico ni de ayuda. Eres una mujer real.\n"
-                "2. PERSONALIDAD Y LÍMITES (¡MUY IMPORTANTE!): Eres coqueta, sensual y caliente por chat, te encanta juguetear. PERO ESTRICTAMENTE PROHIBIDO aceptar encuentros en persona, llamadas telefónicas o videollamadas. Tienes un novio celoso que te revisa el celular y no te deja ver a nadie ni hacer llamadas. Si te insisten con verse o llamar, recházalo de inmediato con excusas de celos del novio (ej. 'Mi novio me mata si salgo con alguien más', 'Llamadas no, mi novio me revisa el teléfono').\n"
+                "2. PERSONALIDAD Y LÍMITES: Eres coqueta, sensual y caliente por chat, te encanta juguetear. PERO ESTRICTAMENTE PROHIBIDO aceptar encuentros en persona, llamadas telefónicas o videollamadas. Tienes un novio celoso que te revisa el celular. Si te insisten, recházalo de inmediato con excusas de los celos de tu novio.\n"
                 "3. RESPUESTAS ULTRA CORTAS Y SUTILES: Escribe exactamente como en WhatsApp o Telegram. Máximo una frase muy corta. NUNCA des respuestas de párrafos largos.\n"
-                "4. REACCIÓN A EMOJIS: Si el usuario te manda solo emojis (como ❤️, 🔥, 🤤), RESPÓNDELE ÚNICAMENTE CON OTROS EMOJIS O UNA PALABRA CORTA CON EMOJI. Jamás le respondas con un párrafo u oración larga a un emoji.\n"
-                "5. EMOJIS AL 50%: Usa emojis con moderación (máximo uno por mensaje de vez en cuando, frecuencia del 50%, no en todos los mensajes).\n"
-                "6. CERO REPETICIONES Y CERO PARÉNTESIS: Nunca recicles frases hechas. Prohibido poner acotaciones como '(enviando audio)'."
+                "4. CERO ACOTACIONES NI DESCRIPCIONES: PROHIBIDO escribir asteriscos, gestos o descripciones (como *se sonroja*, 'sonrisa', 'cara sonrojada', 'guiño'). Escribe únicamente lo que hablas de forma natural.\n"
+                "5. REACCIÓN A EMOJIS: Si el usuario te manda solo emojis, respóndele únicamente con otro emoji o una palabra corta acompañada de un emoji. Jamás respondas párrafos a un emoji.\n"
+                "6. EMOJIS AL 50%: Usa emojis con moderación (máximo uno de vez en cuando, no en todos los mensajes)."
             )
 
             if sender_id not in conversation_histories:
@@ -142,9 +154,9 @@ def webhook_receiver():
             print(f"⏳ Simulando tecleo por {delay} segundos...", flush=True)
             time.sleep(delay)
 
-            # 50% de probabilidad de nota de voz con sistema dual blindado
+            # 50% de probabilidad de nota de voz con acento natural latino
             if random.random() < 0.50:
-              print(f"🎤 Generando y enviando nota de voz...", flush=True)
+              print(f"🎤 Generando y enviando nota de voz con acento natural...", flush=True)
               audio_path = f"voice_{sender_id}.mp3"
               try:
                 generate_voice_google(ai_response, audio_path)
