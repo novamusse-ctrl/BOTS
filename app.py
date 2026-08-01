@@ -20,7 +20,7 @@ ADMIN_ID = os.getenv("ADMIN_TELEGRAM_ID")
 VOICE_NAME = "es-MX-CarlotaNeural"
 
 print(f"🔑 GROQ_API_KEY presente en Render: {bool(API_KEY)}", flush=True)
-print(f"🔥 Master Bot de Alessia (Con Retraso Humano de 10-15s) activo.", flush=True)
+print(f"🔥 Master Bot de Alessia (Modelo 8B Instant + Retraso Humano) activo.", flush=True)
 
 ai_client = Groq(api_key=API_KEY) if API_KEY else None
 BOT_TOKEN = os.getenv("BOT_IA_CONVERSACIONAL")
@@ -85,7 +85,7 @@ def process_message_async(sender_id, chat_id, user_text, user_name, user_usernam
     messages_payload = [{"role": "system", "content": system_instruction}] + conversation_histories[sender_id]
 
     completion = ai_client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
+        model="llama-3.1-8b-instant",
         messages=messages_payload,
         temperature=0.75,
     )
@@ -93,10 +93,8 @@ def process_message_async(sender_id, chat_id, user_text, user_name, user_usernam
 
     conversation_histories[sender_id].append({"role": "assistant", "content": ai_response})
 
-    # Decidir si mandará voz o texto
     send_voice_note = random.random() < 0.65
 
-    # ⏳ RETRASO HUMANO REALISTA (10 a 15 segundos) con indicador de estado
     try:
       bot.send_chat_action(chat_id, 'upload_voice' if send_voice_note else 'typing')
     except:
@@ -158,7 +156,12 @@ def webhook_receiver():
   try:
     json_string = request.get_data().decode("utf-8")
     update = telebot.types.Update.de_json(json_string)
-    message = update.message or (update.callback_query.message if update.callback_query else None)
+    
+    message = update.message or (
+        update.callback_query.message
+        if update.callback_query
+        else None
+    )
 
     if message and message.text:
       sender_id = message.from_user.id
@@ -170,7 +173,6 @@ def webhook_receiver():
       if user_text.startswith('/start'):
         user_text = "Hola"
 
-      # DISPARAR EN HILO SEPARADO: Flask responde 200 OK de inmediato a Telegram
       threading.Thread(
           target=process_message_async,
           args=(sender_id, chat_id, user_text, user_name, user_username, message)
