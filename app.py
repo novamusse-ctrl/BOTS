@@ -1,6 +1,8 @@
 import os
 import random
 import re
+import time
+import threading
 import asyncio
 import edge_tts
 from flask import Flask, request
@@ -11,27 +13,16 @@ API_KEY = os.getenv("GROQ_API_KEY")
 ADMIN_ID = os.getenv("ADMIN_TELEGRAM_ID")
 
 # ==========================================
-# 🎛️ SELECTOR DE VOZ (¡Elige la que prefieras!)
-# Opciones: 
-# "es-MX-DaliaNeural" (México)
-# "es-MX-CarlotaNeural" (México)
-# "es-ES-ElviraNeural" (España)
-# "es-AR-ElenaNeural" (Argentina)
-# "es-CO-SalomeNeural" (Colombia)
+# 🎛️ SELECTOR DE VOZ (Elige tu favorita)
+# "es-MX-CarlotaNeural" (México - Fresca)
+# "es-MX-DaliaNeural" (México - Cálida)
 # ==========================================
 VOICE_NAME = "es-MX-CarlotaNeural"
 
 print(f"🔑 GROQ_API_KEY presente en Render: {bool(API_KEY)}", flush=True)
-print(f"🔥 Master Bot de Alessia (Voz: {VOICE_NAME}) activo.", flush=True)
+print(f"🔥 Master Bot de Alessia (Con Retraso Humano de 10-15s) activo.", flush=True)
 
-ai_client = None
-if API_KEY:
-  try:
-    ai_client = Groq(api_key=API_KEY)
-    print("✅ Cliente oficial de Groq conectado.", flush=True)
-  except Exception as e:
-    print(f"❌ Error al inicializar cliente Groq: {e}", flush=True)
-
+ai_client = Groq(api_key=API_KEY) if API_KEY else None
 BOT_TOKEN = os.getenv("BOT_IA_CONVERSACIONAL")
 bot = telebot.TeleBot(BOT_TOKEN) if BOT_TOKEN else None
 
@@ -42,185 +33,151 @@ conversation_histories = {}
 
 if bot:
   try:
-    webhook_url = f"{DOMAIN}/webhook/master"
-    bot.set_webhook(url=webhook_url)
-    print("✅ Webhook del Master Bot configurado correctamente.", flush=True)
+    bot.set_webhook(url=f"{DOMAIN}/webhook/master")
+    print("✅ Webhook configurado correctamente.", flush=True)
   except Exception as e:
     print(f"❌ Error configurando webhook: {e}", flush=True)
 
 
 def clean_text_for_tts(text):
-  """Limpia emojis, asteriscos y símbolos para que la voz suene impecable"""
+  """Limpia emojis, asteriscos y símbolos para una voz impecable"""
   text_clean = re.sub(r'[^\w\s.,?!¡¿áéíóúÁÉÍÓÚñÑ]', '', text)
   return text_clean.strip()
 
 
-def generate_voice_edge(text, filename="voice.mp3"):
-  """Genera nota de voz neuronal con Edge-tts usando un event loop aislado"""
-  audio_text = clean_text_for_tts(text)
-  if not audio_text:
-    audio_text = "Mande, mi amor."
-  
-  loop = asyncio.new_event_loop()
-  asyncio.set_event_loop(loop)
+def process_message_async(sender_id, chat_id, user_text, user_name, user_username, message_obj):
+  """Procesa la IA y la voz en segundo plano con retraso humano realista"""
   try:
-    communicate = edge_tts.Communicate(audio_text, VOICE_NAME)
-    loop.run_until_complete(communicate.save(filename))
-  finally:
-    loop.close()
+    if ADMIN_ID and str(sender_id) != str(ADMIN_ID):
+      try:
+        espejo_usuario = (
+            f"🚨 [NUEVO CLIENTE]\n"
+            f"👤 De: {user_name} ({user_username})\n"
+            f"👤 ID: {sender_id}\n"
+            f"💬 Dijo: {user_text}"
+        )
+        bot.send_message(ADMIN_ID, espejo_usuario)
+      except Exception:
+        pass
+
+    if not ai_client:
+      return
+
+    system_instruction = (
+        "Eres Alessia Valli, una modelo exclusiva de 29 años. Naciste en Italia pero vives en Guadalajara, Jalisco, México.\n\n"
+        "REGLAS SUPREMAS DE COMPORTAMIENTO:\n"
+        "1. CERO ASISTENTE: Jamás digas frases de soporte, ayuda o bienvenida robótica. Eres una mujer real texteando en su celular.\n"
+        "2. PERSONALIDAD Y LÍMITES: Eres sumamente atractiva, seductora, inteligente y juegas con elegancia. No te regalas al primer segundo: mantienes la tensión y el misterio. ESTRICTAMENTE PROHIBIDO aceptar encuentros en persona, llamadas o videollamadas porque tienes un novio extremadamente celoso que te revisa el teléfono.\n"
+        "3. LONGITUD Y NATURALIDAD: Escribe exactamente como en WhatsApp o Telegram. Máximo una o dos frases muy cortas. Nunca suenes como un bot informativo.\n"
+        "4. CERO ACOTACIONES: PROHIBIDO escribir asteriscos, gestos o descripciones (*se ríe*, *sonrojo*). Solo texto plano natural.\n"
+        "5. EMOJIS: Úsalos con moderación (máximo uno si la ocasión lo amerita, no en todos los mensajes)."
+    )
+
+    if sender_id not in conversation_histories:
+      conversation_histories[sender_id] = []
+
+    if not conversation_histories[sender_id] or conversation_histories[sender_id][-1]["content"] != user_text:
+      conversation_histories[sender_id].append({"role": "user", "content": user_text})
+
+    if len(conversation_histories[sender_id]) > 10:
+      conversation_histories[sender_id] = conversation_histories[sender_id][-10:]
+
+    messages_payload = [{"role": "system", "content": system_instruction}] + conversation_histories[sender_id]
+
+    completion = ai_client.chat.completions.create(
+        model="llama-3.3-70b-versatile",
+        messages=messages_payload,
+        temperature=0.75,
+    )
+    ai_response = completion.choices[0].message.content
+
+    conversation_histories[sender_id].append({"role": "assistant", "content": ai_response})
+
+    # Decidir si mandará voz o texto
+    send_voice_note = random.random() < 0.65
+
+    # ⏳ RETRASO HUMANO REALISTA (10 a 15 segundos) con indicador de estado
+    try:
+      bot.send_chat_action(chat_id, 'upload_voice' if send_voice_note else 'typing')
+    except:
+      pass
+
+    delay_seconds = random.randint(10, 15)
+    print(f"⏳ Esperando {delay_seconds} segundos para simular tiempo humano...", flush=True)
+    time.sleep(delay_seconds)
+
+    if send_voice_note:
+      try:
+        audio_path = f"voice_{sender_id}_{int(time.time())}.mp3"
+        audio_text = clean_text_for_tts(ai_response)
+        if not audio_text:
+          audio_text = "Mande, mi amor."
+
+        async def generate():
+          communicate = edge_tts.Communicate(audio_text, VOICE_NAME)
+          await communicate.save(audio_path)
+
+        asyncio.run(generate())
+
+        with open(audio_path, 'rb') as audio:
+          try:
+            bot.send_voice(chat_id, audio)
+          except Exception:
+            audio.seek(0)
+            bot.send_audio(chat_id, audio)
+
+        if os.path.exists(audio_path):
+          os.remove(audio_path)
+          
+      except Exception as audio_err:
+        print(f"⚠️ Error generando voz, enviando texto de respaldo: {audio_err}", flush=True)
+        bot.reply_to(message_obj, ai_response)
+    else:
+      bot.reply_to(message_obj, ai_response)
+
+    if ADMIN_ID and str(sender_id) != str(ADMIN_ID):
+      try:
+        bot.send_message(ADMIN_ID, f"🤖 [Alessia respondió a {user_name}]:\n{ai_response}")
+      except Exception:
+        pass
+
+  except Exception as e:
+    print(f"❌ Error crítico en hilo async: {e}", flush=True)
 
 
 @app.route("/")
 def home():
-  return f"Master Bot de Alessia (Voz: {VOICE_NAME}) 100% Operativo."
+  return f"Master Bot de Alessia (Con Retraso Humano - Voz: {VOICE_NAME}) 100% Operativo."
 
 
 @app.route("/webhook/master", methods=["POST"])
 def webhook_receiver():
-  print("🚨 ¡PETICIÓN RECIBIDA EN EL MASTER BOT!", flush=True)
-  
   if not bot:
     return "OK", 200
 
   try:
     json_string = request.get_data().decode("utf-8")
     update = telebot.types.Update.de_json(json_string)
+    message = update.message or (update.callback_query.message if update.callback_query else None)
 
-    message = update.message or (
-        update.callback_query.message
-        if update.callback_query
-        else None
-    )
-    
-    if message:
+    if message and message.text:
       sender_id = message.from_user.id
-      user_text = message.text or ""
+      chat_id = message.chat.id
+      user_text = message.text
       user_name = message.from_user.first_name or "Usuario"
       user_username = f"@{message.from_user.username}" if message.from_user.username else "Sin alias"
 
-      # Si el usuario manda /start, lo traducimos a un saludo natural
       if user_text.startswith('/start'):
         user_text = "Hola"
 
-      # Modo Intervención Admin
-      if ADMIN_ID and str(sender_id) == str(ADMIN_ID):
-        if message.reply_to_message and message.reply_to_message.text:
-          reply_text = message.reply_to_message.text
-          if "👤 ID:" in reply_text:
-            try:
-              lines = reply_text.split('\n')
-              target_line = [l for l in lines if "👤 ID:" in l][0]
-              target_user_id = int(target_line.split("👤 ID:")[1].strip())
-              
-              if user_text:
-                bot.send_message(target_user_id, user_text)
-                print(f"🕵️ Intervención manual: Mensaje enviado al cliente {target_user_id}", flush=True)
-              return "OK", 200
-            except Exception as admin_err:
-              print(f"⚠️ Error en intervención: {admin_err}", flush=True)
-
-      if user_text:
-        print(f"💬 Mensaje de {user_name}: '{user_text}'", flush=True)
-
-        if ADMIN_ID and str(sender_id) != str(ADMIN_ID):
-          try:
-            espejo_usuario = (
-                f"🚨 [NUEVO CLIENTE]\n"
-                f"👤 De: {user_name} ({user_username})\n"
-                f"👤 ID: {sender_id}\n"
-                f"💬 Dijo: {user_text}"
-            )
-            bot.send_message(ADMIN_ID, espejo_usuario)
-          except Exception as err_esp1:
-            print(f"⚠️ Error en espejo: {err_esp1}", flush=True)
-
-        if ai_client:
-          print("🧠 Consultando a Groq con control de contexto limpio...", flush=True)
-          try:
-            system_instruction = (
-                "Eres Alessia Valli, una modelo exclusiva de 29 años. Naciste en Italia pero vives en Guadalajara, Jalisco, México.\n\n"
-                "REGLAS SUPREMAS DE COMPORTAMIENTO:\n"
-                "1. CERO ASISTENTE: Jamás digas frases de soporte, ayuda o bienvenida robótica. Eres una mujer real texteando en su celular.\n"
-                "2. PERSONALIDAD Y LÍMITES: Eres sumamente atractiva, seductora, inteligente y juegas con elegancia. No te regalas al primer segundo: mantienes la tensión y el misterio. ESTRICTAMENTE PROHIBIDO aceptar encuentros en persona, llamadas o videollamadas porque tienes un novio extremadamente celoso que te revisa el teléfono.\n"
-                "3. LONGITUD Y NATURALIDAD: Escribe exactamente como en WhatsApp o Telegram. Máximo una o dos frases muy cortas. Nunca suenes como un bot informativo.\n"
-                "4. CERO ACOTACIONES: PROHIBIDO escribir asteriscos, gestos o descripciones (*se ríe*, *sonrojo*). Solo texto plano natural.\n"
-                "5. EMOJIS: Úsalos con moderación (máximo uno si la ocasión lo amerita, no en todos los mensajes)."
-            )
-
-            if sender_id not in conversation_histories:
-              conversation_histories[sender_id] = []
-
-            # Evitar duplicados exactos seguidos en el historial
-            if not conversation_histories[sender_id] or conversation_histories[sender_id][-1]["content"] != user_text:
-              conversation_histories[sender_id].append({"role": "user", "content": user_text})
-
-            if len(conversation_histories[sender_id]) > 10:
-              conversation_histories[sender_id] = conversation_histories[sender_id][-10:]
-
-            messages_payload = [{"role": "system", "content": system_instruction}] + conversation_histories[sender_id]
-
-            completion = ai_client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
-                messages=messages_payload,
-                temperature=0.8,
-            )
-            ai_response = completion.choices[0].message.content
-
-            conversation_histories[sender_id].append({"role": "assistant", "content": ai_response})
-            
-            # Mostramos el indicador de "escribiendo..." en Telegram para que se sienta natural sin bloquear con time.sleep largo
-            try:
-              bot.send_chat_action(message.chat.id, 'upload_voice' if random.random() < 0.55 else 'typing')
-            except:
-              pass
-
-            # 55% de probabilidad de mandar nota de voz neuronal con la voz elegida
-            if random.random() < 0.55:
-              print(f"🎤 Generando y enviando nota de voz neuronal con {VOICE_NAME}...", flush=True)
-              audio_path = f"voice_{sender_id}.mp3"
-              try:
-                generate_voice_edge(ai_response, audio_path)
-                with open(audio_path, 'rb') as audio:
-                  try:
-                    bot.send_voice(message.chat.id, audio)
-                  except Exception as e_voice:
-                    print(f"⚠️ send_voice falló ({e_voice}), usando send_audio...", flush=True)
-                    audio.seek(0)
-                    bot.send_audio(message.chat.id, audio)
-                if os.path.exists(audio_path):
-                  os.remove(audio_path)
-                print("🚀 ¡Nota de voz neuronal enviada con éxito!", flush=True)
-              except Exception as audio_err:
-                print(f"❌ Error crítico en audio, enviando texto de respaldo: {audio_err}", flush=True)
-                bot.reply_to(message, ai_response)
-            else:
-              print(f"✨ Enviando texto corto...", flush=True)
-              bot.reply_to(message, ai_response)
-            
-            if ADMIN_ID and str(sender_id) != str(ADMIN_ID):
-              try:
-                espejo_bot = f"🤖 [Alessia respondió a {user_name}]:\n{ai_response}"
-                bot.send_message(ADMIN_ID, espejo_bot)
-              except Exception as err_esp2:
-                print(f"⚠️ Error en espejo bot: {err_esp2}", flush=True)
-
-            print("🚀 ¡Mensaje respondido con éxito!", flush=True)
-            
-          except Exception as api_err:
-            error_detalle = str(api_err)
-            print(f"❌ ERROR DE GROQ: {error_detalle}", flush=True)
-            fallback_options = [
-                "Me pillaste pensando en otra cosa...",
-                "Uy, con esa pregunta me dejas pensando...",
-                "A ver si es cierto lo que dices...",
-                "Me encantas cuando te pones así de intenso..."
-            ]
-            bot.reply_to(message, random.choice(fallback_options))
-        else:
-          print("❌ Cliente AI no configurado.", flush=True)
+      # DISPARAR EN HILO SEPARADO: Flask responde 200 OK de inmediato a Telegram
+      threading.Thread(
+          target=process_message_async,
+          args=(sender_id, chat_id, user_text, user_name, user_username, message)
+      ).start()
 
   except Exception as e:
-    print(f"❌ EXCEPCIÓN CRÍTICA: {e}", flush=True)
+    print(f"❌ Error en webhook: {e}", flush=True)
 
   return "OK", 200
 
