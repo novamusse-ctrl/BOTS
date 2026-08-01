@@ -2,8 +2,9 @@ import os
 import random
 import re
 import time
+import asyncio
 import traceback
-from gtts import gTTS
+import edge_tts
 from flask import Flask, request
 import telebot
 from groq import Groq
@@ -13,7 +14,7 @@ PAYPAL_LINK = os.getenv("PAYPAL_LINK", "https://paypal.me/tu-enlace")
 ADMIN_ID = os.getenv("ADMIN_TELEGRAM_ID")
 
 print(f"🔑 GROQ_API_KEY presente en Render: {bool(API_KEY)}", flush=True)
-print(f"🔥 Master Bot de Alessia (Voz Latina Natural + Filtro Audio) activo.", flush=True)
+print(f"🔥 Master Bot de Alessia (Voz Neuronal Humana Edge-TTS) activo.", flush=True)
 
 ai_client = None
 if API_KEY:
@@ -42,24 +43,28 @@ if bot:
 
 def clean_text_for_tts(text):
   """Limpia emojis, asteriscos y descripciones para que la voz no lea basura"""
-  # Elimina todo lo que no sea texto estándar, acentos o puntuación básica
   text_clean = re.sub(r'[^\w\s.,?!¡¿áéíóúÁÉÍÓÚñÑ]', '', text)
   return text_clean.strip()
 
 
-def generate_voice_google(text, filename="voice.mp3"):
-  """Genera nota de voz con acento latino natural (México) y texto limpio"""
+def generate_voice_edge(text, filename="voice.mp3"):
+  """Genera nota de voz con Inteligencia Artificial Neuronal (Microsoft Edge)"""
   audio_text = clean_text_for_tts(text)
   if not audio_text:
     audio_text = "Mande, mi amor."
-  # tld='com.mx' otorga la tonada y acento natural de mujer latina
-  tts = gTTS(text=audio_text, lang='es', tld='com.mx', slow=False)
-  tts.save(filename)
+  
+  async def _generate():
+    # es-MX-DaliaNeural ofrece una entonación ultra natural, cálida y de mujer joven
+    communicate = edge_tts.Communicate(audio_text, "es-MX-DaliaNeural")
+    await communicate.save(filename)
+
+  # Ejecutamos la corrutina de manera síncrona para Flask
+  asyncio.run(_generate())
 
 
 @app.route("/")
 def home():
-  return "Master Bot de Alessia (Voz Latina Natural) 100% Operativo."
+  return "Master Bot de Alessia (Voz Neuronal Humana) 100% Operativo."
 
 
 @app.route("/webhook/master", methods=["POST"])
@@ -154,12 +159,12 @@ def webhook_receiver():
             print(f"⏳ Simulando tecleo por {delay} segundos...", flush=True)
             time.sleep(delay)
 
-            # 50% de probabilidad de nota de voz con acento natural latino
+            # 50% de probabilidad de nota de voz con calidad neuronal hiperrealista
             if random.random() < 0.50:
-              print(f"🎤 Generando y enviando nota de voz con acento natural...", flush=True)
+              print(f"🎤 Generando y enviando nota de voz neuronal con Edge-TTS...", flush=True)
               audio_path = f"voice_{sender_id}.mp3"
               try:
-                generate_voice_google(ai_response, audio_path)
+                generate_voice_edge(ai_response, audio_path)
                 with open(audio_path, 'rb') as audio:
                   try:
                     bot.send_voice(message.chat.id, audio)
@@ -169,7 +174,7 @@ def webhook_receiver():
                     bot.send_audio(message.chat.id, audio)
                 if os.path.exists(audio_path):
                   os.remove(audio_path)
-                print("🚀 ¡Nota de voz enviada con éxito!", flush=True)
+                print("🚀 ¡Nota de voz neuronal enviada con éxito!", flush=True)
               except Exception as audio_err:
                 print(f"❌ Error crítico en audio, enviando texto: {audio_err}", flush=True)
                 bot.reply_to(message, ai_response)
