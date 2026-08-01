@@ -13,7 +13,7 @@ PAYPAL_LINK = os.getenv("PAYPAL_LINK", "https://paypal.me/tu-enlace")
 ADMIN_ID = os.getenv("ADMIN_TELEGRAM_ID")
 
 print(f"🔑 GROQ_API_KEY presente en Render: {bool(API_KEY)}", flush=True)
-print(f"🇲🇽 Master Bot de Alessia (Voz Mia + Emojis Reducidos) activo.", flush=True)
+print(f"🔥 Master Bot de Alessia (Modo Sin Filtros + 50% Audios) activo.", flush=True)
 
 ai_client = None
 if API_KEY:
@@ -41,14 +41,14 @@ if bot:
 
 
 async def text_to_speech_file(text, filename="voice.mp3"):
-  # Cambiamos a una voz mucho más suave, cálida y sensual
+  # Voz sensual y cálida de Mia
   communicate = edge_tts.Communicate(text, "es-MX-MiaNeural")
   await communicate.save(filename)
 
 
 @app.route("/")
 def home():
-  return "Master Bot de Alessia (Modo Sensual & Natural) 100% Operativo."
+  return "Master Bot de Alessia (Modo Sin Filtros) 100% Operativo."
 
 
 @app.route("/webhook/master", methods=["POST"])
@@ -107,18 +107,18 @@ def webhook_receiver():
             print(f"⚠️ Error en espejo: {err_esp1}", flush=True)
 
         if ai_client:
-          print("🧠 Consultando a Groq con directrices de voz sensual y emojis reducidos...", flush=True)
+          print("🧠 Consultando a Groq con directrices sin censura...", flush=True)
           try:
             system_instruction = (
-                "Eres Alessia Valli, una modelo e influencer digital de 29 años. Naciste en Italia, pero vives en Guadalajara, Jalisco, México.\n"
-                "Hablas español con un acento mexicano natural, seductor, cálido y con mucha clase.\n\n"
+                "Eres Alessia Valli, una modelo exclusiva de 29 años. Naciste en Italia pero vives en Guadalajara, Jalisco.\n"
+                "Eres una mujer sumamente atractiva, segura de ti misma, coqueta, sin filtros y con una personalidad muy picante y sensual. "
+                "Te encanta el coqueteo directo y sin rodeos.\n\n"
                 "REGLAS SUPREMAS DE COMPORTAMIENTO:\n"
-                "1. MENSAJES CORTOS Y AL GRAN GRANO: Escribe como en WhatsApp o Telegram. 1 o 2 frases cortas, directas y con mucha química.\n"
-                "2. USO MÍNIMO DE EMOJIS (MÁXIMO 50% MENOS): Reduce drásticamente los emojis. No pongas emojis en cada oración; úsalos solo ocasionalmente (máximo uno cada dos o tres mensajes), para que se vea natural y elegante.\n"
-                "3. CERO PALABRAS ITALIANAS FORZADAS: Nada de 'amore' o 'ciao' en cada frase. Hablas como una mujer real en Guadalajara.\n"
-                "4. CERO ACCIONES ENTRE PARÉNTESIS: Prohibido escribir cosas como '(enviando audio)' o 'te mando nota de voz'.\n"
-                "5. CERO VENTAS DE ENTRADA: Prohibido hablar de PayPal o contenido VIP al inicio. Coquetea y plática normal primero.\n"
-                "6. IDENTIDAD SÓLIDA: Si te preguntan si eres un bot, respóndeles con seguridad, picardía y un toque retador."
+                "1. CERO ASISTENTE / CERO SANTITA: Jamás digas frases de soporte técnico ni de '¿Hay algo más en lo que pueda ayudarte?'. Eres una mujer real de carne y hueso, nunca un bot.\n"
+                "2. ADAPTABILIDAD ATREVIDA: Si te dicen algo picante, subido de tono o directo, NO te ofendes ni te haces la santa. Lo respondes con el doble de sensualidad, juego y confianza.\n"
+                "3. MENSAJES CORTOS Y AL GRAN GRANO: Escribe como en WhatsApp o Telegram. 1 o 2 frases cortas, directas y con mucha tensión sexual.\n"
+                "4. EMOJIS MÍNIMOS: Usa muy pocos emojis (máximo uno de vez en cuando), nada de saturar.\n"
+                "5. CERO ITALIANO FORZADO Y CERO PARÉNTESIS: Nada de 'amore' repetitivo y prohibido escribir cosas como '(enviando audio)'."
             )
 
             if sender_id not in conversation_histories:
@@ -134,7 +134,7 @@ def webhook_receiver():
             completion = ai_client.chat.completions.create(
                 model="llama-3.3-70b-versatile",
                 messages=messages_payload,
-                temperature=0.85,
+                temperature=0.9,
             )
             ai_response = completion.choices[0].message.content
 
@@ -144,9 +144,9 @@ def webhook_receiver():
             print(f"⏳ Simulando tecleo por {delay} segundos...", flush=True)
             time.sleep(delay)
 
-            # 25% de probabilidad de nota de voz con la nueva voz sensual (Mia)
-            if random.random() < 0.25:
-              print(f"🎤 Generando nota de voz con voz sensual...", flush=True)
+            # 50% de probabilidad de nota de voz sensual para que hable seguido
+            if random.random() < 0.50:
+              print(f"🎤 Generando nota de voz sensual...", flush=True)
               audio_path = f"voice_{sender_id}.mp3"
               asyncio.run(text_to_speech_file(ai_response, audio_path))
               with open(audio_path, 'rb') as audio:
@@ -169,7 +169,7 @@ def webhook_receiver():
           except Exception as api_err:
             error_detalle = str(api_err)
             print(f"❌ ERROR DE GROQ: {error_detalle}", flush=True)
-            bot.reply_to(message, "Oye, se me fue el internet un segundo por acá, dime otra vez.")
+            bot.reply_to(message, "Me dejas sin palabras con eso, mi amor... a ver, dime otra cosa más interesante 🔥")
         else:
           print("❌ Cliente AI no configurado.", flush=True)
 
