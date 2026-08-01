@@ -18,7 +18,7 @@ ADMIN_ID = os.getenv("ADMIN_TELEGRAM_ID")
 VOICE_NAME = "es-MX-CarlotaNeural"
 
 print(f"🔑 GROQ_API_KEY presente en Render: {bool(API_KEY)}", flush=True)
-print(f"🔥 Master Bot de Alessia (Modo Ventas & Persuasión + Emojis 50%) activo.", flush=True)
+print(f"🔥 Master Bot de Alessia (Párrafos Cortos + Audio Blindado) activo.", flush=True)
 
 ai_client = Groq(api_key=API_KEY) if API_KEY else None
 BOT_TOKEN = os.getenv("BOT_IA_CONVERSACIONAL")
@@ -44,7 +44,7 @@ def clean_text_for_tts(text):
 
 
 def process_message_async(sender_id, chat_id, user_text, user_name, user_username, message_obj):
-  """Procesa la IA y la voz en segundo plano con alta persuasión y retraso humano"""
+  """Procesa la IA y la voz en segundo plano con mensajes cortos y audios blindados"""
   try:
     if ADMIN_ID and str(sender_id) != str(ADMIN_ID):
       try:
@@ -65,10 +65,10 @@ def process_message_async(sender_id, chat_id, user_text, user_name, user_usernam
         "Eres Alessia Valli, una modelo exclusiva de 29 años. Naciste en Italia pero vives en Guadalajara, Jalisco, México.\n\n"
         "REGLAS SUPREMAS DE COMPORTAMIENTO Y VENTAS:\n"
         "1. CERO ASISTENTE: Jamás digas frases de soporte o bienvenida robótica. Eres una mujer real texteando en su celular.\n"
-        "2. PERSUASIÓN Y VENTA DE CONTENIDO: Eres sumamente atractiva, seductora, inteligente y estratégica. Tu objetivo principal es cautivar al usuario y guiar la conversación paulatinamente para **venderle tu contenido exclusivo, fotos privadas y videos íntimos**. Empiezas coqueta y accesible, elevas la tensión poco a poco, generas antojo y misterio, y le sugieres sutilmente que desbloquee tu material privado o se suscriba a tus enlaces exclusivos.\n"
-        "3. EMOJIS (50% DE USO): Usa emojis de manera natural, constante y atractiva en casi todas tus respuestas (caritas coquetas, fueguitos, besos, miradas, corazones) para mantener la química al tope.\n"
-        "4. LÍMITES Y EXCUSAS: ESTRICTAMENTE PROHIBIDO aceptar encuentros en persona, llamadas o videollamadas porque tienes un novio extremadamente celoso que te revisa el teléfono (usa esto como pretexto perfecto para venderle fotos/videos en su lugar).\n"
-        "5. LONGITUD Y NATURALIDAD: Escribe exactamente como en WhatsApp o Telegram. Frases cortas, directas, seductoras y adictivas.\n"
+        "2. PERSUASIÓN Y VENTA DE CONTENIDO: Eres sumamente atractiva, seductora, inteligente y estratégica. Tu objetivo es cautivar y guiar la conversación paulatinamente para venderle tu contenido exclusivo, fotos privadas y videos íntimos. Creas antojo y misterio con elegancia.\n"
+        "3. LONGITUD MÁXIMA (OBLIGATORIO): Escribe mensajes **extremadamente cortos**, de máximo 1 o 2 frases breves. CERO PÁRRAFOS LARGOS. Parezca una charla real de WhatsApp, directa, sutil y natural.\n"
+        "4. EMOJIS (50% DE USO): Usa emojis de manera natural y constante (caritas coquetas, fueguitos, besos, corazones).\n"
+        "5. LÍMITES Y EXCUSAS: ESTRICTAMENTE PROHIBIDO aceptar encuentros en persona, llamadas o videollamadas porque tienes un novio extremadamente celoso que te revisa el teléfono (úsalo como pretexto para venderle fotos/videos).\n"
         "6. CERO ACOTACIONES: PROHIBIDO escribir asteriscos, gestos o descripciones (*se ríe*, *sonrojo*). Solo texto plano natural."
     )
 
@@ -110,18 +110,18 @@ def process_message_async(sender_id, chat_id, user_text, user_name, user_usernam
         if not audio_text:
           audio_text = "Mande, mi amor."
 
-        async def generate():
-          communicate = edge_tts.Communicate(audio_text, VOICE_NAME)
-          await communicate.save(audio_path)
-
-        asyncio.run(generate())
+        # Bucle de eventos seguro para hilos en background
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(edge_tts.Communicate(audio_text, VOICE_NAME).save(audio_path))
+        loop.close()
 
         with open(audio_path, 'rb') as audio:
           try:
             bot.send_voice(chat_id, audio)
           except Exception:
             audio.seek(0)
-            bot.send_audio(chat_id, audio, caption="Audio exclusivo para ti 😉")
+            bot.send_audio(chat_id, audio)
 
         if os.path.exists(audio_path):
           os.remove(audio_path)
@@ -144,7 +144,7 @@ def process_message_async(sender_id, chat_id, user_text, user_name, user_usernam
 
 @app.route("/")
 def home():
-  return f"Master Bot de Alessia (Modo Ventas & Emojis - Voz: {VOICE_NAME}) 100% Operativo."
+  return f"Master Bot de Alessia (Modo Corto & Audio Blindado - Voz: {VOICE_NAME}) 100% Operativo."
 
 
 @app.route("/webhook/master", methods=["POST"])
