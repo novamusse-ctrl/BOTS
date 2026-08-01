@@ -1,7 +1,6 @@
 import os
 import random
 import re
-import time
 import asyncio
 import edge_tts
 from flask import Flask, request
@@ -11,8 +10,19 @@ from groq import Groq
 API_KEY = os.getenv("GROQ_API_KEY")
 ADMIN_ID = os.getenv("ADMIN_TELEGRAM_ID")
 
+# ==========================================
+# 🎛️ SELECTOR DE VOZ (¡Elige la que prefieras!)
+# Opciones: 
+# "es-MX-DaliaNeural" (México)
+# "es-MX-CarlotaNeural" (México)
+# "es-ES-ElviraNeural" (España)
+# "es-AR-ElenaNeural" (Argentina)
+# "es-CO-SalomeNeural" (Colombia)
+# ==========================================
+VOICE_NAME = "es-MX-CarlotaNeural"
+
 print(f"🔑 GROQ_API_KEY presente en Render: {bool(API_KEY)}", flush=True)
-print(f"🔥 Master Bot de Alessia (Versión Definitiva Humana) activo.", flush=True)
+print(f"🔥 Master Bot de Alessia (Voz: {VOICE_NAME}) activo.", flush=True)
 
 ai_client = None
 if API_KEY:
@@ -46,7 +56,7 @@ def clean_text_for_tts(text):
 
 
 def generate_voice_edge(text, filename="voice.mp3"):
-  """Genera nota de voz neuronal con Edge-tts usando un event loop aislado para Flask"""
+  """Genera nota de voz neuronal con Edge-tts usando un event loop aislado"""
   audio_text = clean_text_for_tts(text)
   if not audio_text:
     audio_text = "Mande, mi amor."
@@ -54,7 +64,7 @@ def generate_voice_edge(text, filename="voice.mp3"):
   loop = asyncio.new_event_loop()
   asyncio.set_event_loop(loop)
   try:
-    communicate = edge_tts.Communicate(audio_text, "es-MX-DaliaNeural")
+    communicate = edge_tts.Communicate(audio_text, VOICE_NAME)
     loop.run_until_complete(communicate.save(filename))
   finally:
     loop.close()
@@ -62,7 +72,7 @@ def generate_voice_edge(text, filename="voice.mp3"):
 
 @app.route("/")
 def home():
-  return "Master Bot de Alessia (Voz Neuronal Definitiva) 100% Operativo."
+  return f"Master Bot de Alessia (Voz: {VOICE_NAME}) 100% Operativo."
 
 
 @app.route("/webhook/master", methods=["POST"])
@@ -88,7 +98,7 @@ def webhook_receiver():
       user_name = message.from_user.first_name or "Usuario"
       user_username = f"@{message.from_user.username}" if message.from_user.username else "Sin alias"
 
-      # Si el usuario manda /start, lo traducimos a un saludo natural para no romper la IA
+      # Si el usuario manda /start, lo traducimos a un saludo natural
       if user_text.startswith('/start'):
         user_text = "Hola"
 
@@ -125,7 +135,7 @@ def webhook_receiver():
             print(f"⚠️ Error en espejo: {err_esp1}", flush=True)
 
         if ai_client:
-          print("🧠 Consultando a Groq con personalidad seductora y realista...", flush=True)
+          print("🧠 Consultando a Groq con control de contexto limpio...", flush=True)
           try:
             system_instruction = (
                 "Eres Alessia Valli, una modelo exclusiva de 29 años. Naciste en Italia pero vives en Guadalajara, Jalisco, México.\n\n"
@@ -140,30 +150,33 @@ def webhook_receiver():
             if sender_id not in conversation_histories:
               conversation_histories[sender_id] = []
 
-            conversation_histories[sender_id].append({"role": "user", "content": user_text})
+            # Evitar duplicados exactos seguidos en el historial
+            if not conversation_histories[sender_id] or conversation_histories[sender_id][-1]["content"] != user_text:
+              conversation_histories[sender_id].append({"role": "user", "content": user_text})
 
-            if len(conversation_histories[sender_id]) > 12:
-              conversation_histories[sender_id] = conversation_histories[sender_id][-12:]
+            if len(conversation_histories[sender_id]) > 10:
+              conversation_histories[sender_id] = conversation_histories[sender_id][-10:]
 
             messages_payload = [{"role": "system", "content": system_instruction}] + conversation_histories[sender_id]
 
             completion = ai_client.chat.completions.create(
                 model="llama-3.3-70b-versatile",
                 messages=messages_payload,
-                temperature=0.85,
+                temperature=0.8,
             )
             ai_response = completion.choices[0].message.content
 
             conversation_histories[sender_id].append({"role": "assistant", "content": ai_response})
             
-            # Demora realista de 8 a 14 segundos para simular que está pensando, escribiendo o grabando audio
-            delay = random.randint(8, 14)
-            print(f"⏳ Simulando tiempo humano real por {delay} segundos...", flush=True)
-            time.sleep(delay)
+            # Mostramos el indicador de "escribiendo..." en Telegram para que se sienta natural sin bloquear con time.sleep largo
+            try:
+              bot.send_chat_action(message.chat.id, 'upload_voice' if random.random() < 0.55 else 'typing')
+            except:
+              pass
 
-            # 55% de probabilidad de mandar nota de voz neuronal con Edge-TTS
+            # 55% de probabilidad de mandar nota de voz neuronal con la voz elegida
             if random.random() < 0.55:
-              print(f"🎤 Generando y enviando nota de voz neuronal con Dalia...", flush=True)
+              print(f"🎤 Generando y enviando nota de voz neuronal con {VOICE_NAME}...", flush=True)
               audio_path = f"voice_{sender_id}.mp3"
               try:
                 generate_voice_edge(ai_response, audio_path)
