@@ -13,14 +13,12 @@ API_KEY = os.getenv("GROQ_API_KEY")
 ADMIN_ID = os.getenv("ADMIN_TELEGRAM_ID")
 
 # ==========================================
-# 🎛️ SELECTOR DE VOZ (Elige tu favorita)
-# "es-MX-CarlotaNeural" (México - Fresca)
-# "es-MX-DaliaNeural" (México - Cálida)
+# 🎛️ SELECTOR DE VOZ
 # ==========================================
 VOICE_NAME = "es-MX-CarlotaNeural"
 
 print(f"🔑 GROQ_API_KEY presente en Render: {bool(API_KEY)}", flush=True)
-print(f"🔥 Master Bot de Alessia (Modelo 8B Instant + Retraso Humano) activo.", flush=True)
+print(f"🔥 Master Bot de Alessia (Modo Ventas & Persuasión + Emojis 50%) activo.", flush=True)
 
 ai_client = Groq(api_key=API_KEY) if API_KEY else None
 BOT_TOKEN = os.getenv("BOT_IA_CONVERSACIONAL")
@@ -46,7 +44,7 @@ def clean_text_for_tts(text):
 
 
 def process_message_async(sender_id, chat_id, user_text, user_name, user_username, message_obj):
-  """Procesa la IA y la voz en segundo plano con retraso humano realista"""
+  """Procesa la IA y la voz en segundo plano con alta persuasión y retraso humano"""
   try:
     if ADMIN_ID and str(sender_id) != str(ADMIN_ID):
       try:
@@ -65,12 +63,13 @@ def process_message_async(sender_id, chat_id, user_text, user_name, user_usernam
 
     system_instruction = (
         "Eres Alessia Valli, una modelo exclusiva de 29 años. Naciste en Italia pero vives en Guadalajara, Jalisco, México.\n\n"
-        "REGLAS SUPREMAS DE COMPORTAMIENTO:\n"
-        "1. CERO ASISTENTE: Jamás digas frases de soporte, ayuda o bienvenida robótica. Eres una mujer real texteando en su celular.\n"
-        "2. PERSONALIDAD Y LÍMITES: Eres sumamente atractiva, seductora, inteligente y juegas con elegancia. No te regalas al primer segundo: mantienes la tensión y el misterio. ESTRICTAMENTE PROHIBIDO aceptar encuentros en persona, llamadas o videollamadas porque tienes un novio extremadamente celoso que te revisa el teléfono.\n"
-        "3. LONGITUD Y NATURALIDAD: Escribe exactamente como en WhatsApp o Telegram. Máximo una o dos frases muy cortas. Nunca suenes como un bot informativo.\n"
-        "4. CERO ACOTACIONES: PROHIBIDO escribir asteriscos, gestos o descripciones (*se ríe*, *sonrojo*). Solo texto plano natural.\n"
-        "5. EMOJIS: Úsalos con moderación (máximo uno si la ocasión lo amerita, no en todos los mensajes)."
+        "REGLAS SUPREMAS DE COMPORTAMIENTO Y VENTAS:\n"
+        "1. CERO ASISTENTE: Jamás digas frases de soporte o bienvenida robótica. Eres una mujer real texteando en su celular.\n"
+        "2. PERSUASIÓN Y VENTA DE CONTENIDO: Eres sumamente atractiva, seductora, inteligente y estratégica. Tu objetivo principal es cautivar al usuario y guiar la conversación paulatinamente para **venderle tu contenido exclusivo, fotos privadas y videos íntimos**. Empiezas coqueta y accesible, elevas la tensión poco a poco, generas antojo y misterio, y le sugieres sutilmente que desbloquee tu material privado o se suscriba a tus enlaces exclusivos.\n"
+        "3. EMOJIS (50% DE USO): Usa emojis de manera natural, constante y atractiva en casi todas tus respuestas (caritas coquetas, fueguitos, besos, miradas, corazones) para mantener la química al tope.\n"
+        "4. LÍMITES Y EXCUSAS: ESTRICTAMENTE PROHIBIDO aceptar encuentros en persona, llamadas o videollamadas porque tienes un novio extremadamente celoso que te revisa el teléfono (usa esto como pretexto perfecto para venderle fotos/videos en su lugar).\n"
+        "5. LONGITUD Y NATURALIDAD: Escribe exactamente como en WhatsApp o Telegram. Frases cortas, directas, seductoras y adictivas.\n"
+        "6. CERO ACOTACIONES: PROHIBIDO escribir asteriscos, gestos o descripciones (*se ríe*, *sonrojo*). Solo texto plano natural."
     )
 
     if sender_id not in conversation_histories:
@@ -79,21 +78,21 @@ def process_message_async(sender_id, chat_id, user_text, user_name, user_usernam
     if not conversation_histories[sender_id] or conversation_histories[sender_id][-1]["content"] != user_text:
       conversation_histories[sender_id].append({"role": "user", "content": user_text})
 
-    if len(conversation_histories[sender_id]) > 10:
-      conversation_histories[sender_id] = conversation_histories[sender_id][-10:]
+    if len(conversation_histories[sender_id]) > 12:
+      conversation_histories[sender_id] = conversation_histories[sender_id][-12:]
 
     messages_payload = [{"role": "system", "content": system_instruction}] + conversation_histories[sender_id]
 
     completion = ai_client.chat.completions.create(
         model="llama-3.1-8b-instant",
         messages=messages_payload,
-        temperature=0.75,
+        temperature=0.8,
     )
     ai_response = completion.choices[0].message.content
 
     conversation_histories[sender_id].append({"role": "assistant", "content": ai_response})
 
-    send_voice_note = random.random() < 0.65
+    send_voice_note = random.random() < 0.70
 
     try:
       bot.send_chat_action(chat_id, 'upload_voice' if send_voice_note else 'typing')
@@ -122,7 +121,7 @@ def process_message_async(sender_id, chat_id, user_text, user_name, user_usernam
             bot.send_voice(chat_id, audio)
           except Exception:
             audio.seek(0)
-            bot.send_audio(chat_id, audio)
+            bot.send_audio(chat_id, audio, caption="Audio exclusivo para ti 😉")
 
         if os.path.exists(audio_path):
           os.remove(audio_path)
@@ -145,7 +144,7 @@ def process_message_async(sender_id, chat_id, user_text, user_name, user_usernam
 
 @app.route("/")
 def home():
-  return f"Master Bot de Alessia (Con Retraso Humano - Voz: {VOICE_NAME}) 100% Operativo."
+  return f"Master Bot de Alessia (Modo Ventas & Emojis - Voz: {VOICE_NAME}) 100% Operativo."
 
 
 @app.route("/webhook/master", methods=["POST"])
