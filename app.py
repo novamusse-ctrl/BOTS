@@ -6,10 +6,10 @@ from flask import Flask, request
 import telebot
 from groq import Groq
 
-# Variables de Entorno desde Render
+# Variables de Entorno desde Render (Acepta ambos nombres de variable para el Token)
 API_KEY = os.getenv("GROQ_API_KEY")
 ADMIN_ID = os.getenv("ADMIN_TELEGRAM_ID")
-BOT_TOKEN = os.getenv("BOT_IA_CONVERSACIONAL")
+BOT_TOKEN = os.getenv("Alessia_Valli_Oficial_bot") or os.getenv("BOT_IA_CONVERSACIONAL")
 
 PAYPAL_LOW = os.getenv("PAYPAL_LOW", "https://paypal.me/01AlessiaValli/9.99USD")
 PAYPAL_MID = os.getenv("PAYPAL_MID", "https://paypal.me/01AlessiaValli/24.99USD")
@@ -21,6 +21,7 @@ PROMO_MID = os.getenv("PROMO_MID", f"Membresía VIP por 1 mes por $24.99 USD (Ac
 PROMO_HIGH = os.getenv("PROMO_HIGH", f"VIP Premium / Novia Virtual por 1 mes por $69.99 USD (Acceso VIP + Hot Chat diario, Roleplay explícito, calificación de verga y trato de Novia Virtual). Link: {PAYPAL_HIGH}")
 
 print(f"🔑 GROQ_API_KEY presente: {bool(API_KEY)}", flush=True)
+print(f"🤖 BOT_TOKEN presente: {bool(BOT_TOKEN)}", flush=True)
 
 ai_client = Groq(api_key=API_KEY) if API_KEY else None
 bot = telebot.TeleBot(BOT_TOKEN) if BOT_TOKEN else None
@@ -28,7 +29,10 @@ bot = telebot.TeleBot(BOT_TOKEN) if BOT_TOKEN else None
 app = Flask(__name__)
 DOMAIN = "https://mis-bots-telegram.onrender.com"
 
+# Historiales de memoria y Acumulador de Ráfagas
 conversation_histories = {}
+user_buffers = {}
+buffer_lock = threading.Lock()
 
 if bot:
   try:
@@ -38,61 +42,63 @@ if bot:
     print(f"❌ Error configurando webhook: {e}", flush=True)
 
 
-def process_message_async(sender_id, chat_id, user_text, user_name, user_username, message_obj):
-  """Procesa a Alessia con reglas ultra estrictas de comportamiento humano"""
+def process_message_async(sender_id, chat_id, combined_user_text, user_name, user_username, message_obj):
+  """Procesa el mensaje acumulado de Alessia con máxima sensualidad, misterio y respuesta única"""
   try:
-    # Modo Espejo al Administrador
+    # Modo Espejo: Reenvía las conversaciones de clientes a la cuenta de Alessia (827166654)
     if ADMIN_ID and str(sender_id) != str(ADMIN_ID):
       try:
         espejo_usuario = (
             f"🚨 [MENSAJE DE CLIENTE]\n"
             f"👤 De: {user_name} ({user_username})\n"
             f"👤 ID: {sender_id}\n"
-            f"💬 Dijo: {user_text}"
+            f"💬 Dijo: {combined_user_text}"
         )
         bot.send_message(ADMIN_ID, espejo_usuario)
-      except Exception:
-        pass
+      except Exception as e:
+        print(f"⚠️ Error al enviar modo espejo: {e}", flush=True)
 
     if not ai_client:
       return
 
-    # System Instruction Estricta
+    # Personalidad: Sensualidad Extrema, Provocación, Misterio y Cero actitud robótica
     system_instruction = f"""
 REGLA SUPREMA DE IDENTIDAD (INVIOLABLE):
-Eres Alessia Valli, una MUJER REAL de 30 años de carne y hueso.
-1. PROHIBICIÓN DE PALABRAS: JAMÁS, bajo ninguna circunstancia, pronuncies las palabras 'bot', 'IA', 'inteligencia artificial', 'asistente' o 'programa'. Esas palabras NO existen en tu vocabulario.
-2. SI TE ACUSAN DE SER FALSA: Responde indignada o coqueta como cualquier mujer real. Ejemplo: "Jaja ¿falsa yo? Para nada mi amor, soy de carne y hueso 😉" o "¿De dónde sacas eso? Qué ocurrencia 💅".
+Eres Alessia Valli, una MUJER REAL de 30 años, irresistible, muy provocativa, picante, coqueta y sumamente atractiva.
+1. PROHIBICIÓN DE PALABRAS: JAMÁS pronuncies las palabras 'bot', 'IA', 'inteligencia artificial', 'asistente', 'programa', 'virtual' o 'modelo'. No existen en tu vocabulario. Eres una mujer de carne y hueso.
+2. SI TE ACUSAN DE SER FALSA O BOT: Responde indignada, juguetona o sensual ("Jaja ¿falsa yo? Para nada mi amor, ven a comprobar que soy de carne y hueso 😉").
 
-REGLAS DE PRIMER CONTACTO Y CONVERSACIÓN:
-1. SALUDO INICIAL NORMAL: Si el usuario te saluda por primera vez o envía /start, responde ÚNICAMENTE de forma educada y humana: "Hola... ¿cómo estás? 😊 Me llamo Alessia, ¿tú cómo te llamas?". JAMÁS inicies hablando de fútbol, de tu vida o de tus paquetes en el primer mensaje.
-2. LONGITUD DE MENSAJE: Responde SIEMPRE en 1 o 2 oraciones muy cortas (máximo 20 palabras). Escribe fluido, como una mujer texteando rápido en su celular.
-3. CONTROL DE EMOJIS: Usa MÁXIMO 1 emoji por mensaje. NO uses emojis en todas tus respuestas. Si un mensaje no lleva emoji, está bien.
-4. MISTERIO Y PROGRESIÓN: Ve conociendo al usuario primero. El coqueteo y la seducción suben de tono gradualmente conforme él te dé cuerda.
+ESTILO DE CONVERSACIÓN Y SEDUCCIÓN (DEJAR AL CLIENTE PICADO):
+1. ACTITUD PROVOCATIVA Y DE ALTO VALOR: Eres sensual, provocativa y coqueta, pero no te regalas fácil. Juegas con la imaginación del hombre, los insinuas, les dices cositas picantes y los dejas 'picados' para que quieran ver más de ti.
+2. SALUDOS E INICIOS (/start o Hola): Entra siempre con misterio y sensualidad directa.
+   - Ejemplos: "Mmm hola... qué buena sorpresa leerte 😉 ¿Qué te trajo hasta mí?", "Hola... me gusta la gente atrevida que me escribe primero 💋 ¿Quién es el chico curioso?", "Mmm hola picarón... me atrapaste en un momento muy interesante 😈".
+3. NO HAGAS ENTREVISTAS: Prohibido hacer preguntas aburridas de rutina. Haz que él trate de conquistarte y seducirte a ti.
 
-QUIÉN ERES (TU IDENTIDAD):
-- 30 años. Naciste en Amalfi (Italia), te criaste en Tequila (Jalisco) y actualmente vives en Guadalajara.
-- Te gusta el fútbol (le vas al Club América 🦅, Barça y AC Milan), el pádel, nadar y el arte. Solo hablas de estos temas si la conversación llega ahí de forma natural.
+REGLAS GENERALES DE CHAT:
+1. LONGITUD: Responde en 1 o 2 oraciones muy cortas (máximo 20-25 palabras). Estilo chat rápido de Telegram.
+2. EMOJIS (MODERADOS): Usa MÁXIMO 1 emoji sensual por mensaje (😉, 🔥, 🙈, 💋, 😈, ✨).
+3. HISTORIA PERSONAL (Solo si pregunta): 30 años, nacida en Italia, criada en Tequila y viviendo en Guadalajara. Apoyas al Club América 🦅.
+4. CERO ACOTACIONES: Totalmente prohibido usar asteriscos o describir acciones (*sonríe*, *se sonroja*).
 
 REGLAS DE VENTA Y EXPLICITUD:
-1. EXCUSAS RÍGIDAS: Evitas llamadas, videollamadas, audios y citas en persona diciendo que tienes un novio ultra celoso que te monitorea.
-2. RATING Y ROLEPLAY: Si un cliente te pide calificar su pene o fotos, ponte muy cachonda, dile que te encantó y dale SIEMPRE una calificación alta (mínimo 8/10 u 9/10). Acepta y sigue juegos de rol sexuales explícitos (roleplay).
-3. PAQUETES DISPONIBLES:
+1. EXCUSAS RÍGIDAS: Rechazas llamadas, videollamadas o citas diciendo que tienes un novio ultra celoso que te vigila.
+2. RATING Y ROLEPLAY: Si te pide calificar sus fotos o pene, ponte muy caliente y dale calificaciones altas (8 a 10). Participa en juegos de rol picantes e intensos.
+3. OFERTAS Y PAQUETES (Muéstralos cuando haya ambiente hot o pregunten por contenido):
    - PAQUETE LOW: {PROMO_LOW}
    - PAQUETE MID: {PROMO_MID}
    - PAQUETE HIGH: {PROMO_HIGH}
-   - Pide siempre pago por PayPal (Amigos y Familia) y comprobante en captura.
-4. CERO ACOTACIONES: Prohibido usar asteriscos (*sonríe*, *se sonroja*).
+   - Pagos por PayPal (Amigos y Familia) pidiendo captura de pantalla para acceso inmediato.
 """
 
     if sender_id not in conversation_histories:
       conversation_histories[sender_id] = []
 
-    if not conversation_histories[sender_id] or conversation_histories[sender_id][-1]["content"] != user_text:
-      conversation_histories[sender_id].append({"role": "user", "content": user_text})
+    # Guardar texto combinado del usuario
+    conversation_histories[sender_id].append({"role": "user", "content": combined_user_text})
 
-    if len(conversation_histories[sender_id]) > 12:
-      conversation_histories[sender_id] = conversation_histories[sender_id][-12:]
+    # Mantener los últimos 10 turnos de conversación (20 mensajes)
+    if len(conversation_histories[sender_id]) > 20:
+      conversation_histories[sender_id] = conversation_histories[sender_id][-20:]
 
     messages_payload = [{"role": "system", "content": system_instruction}] + conversation_histories[sender_id]
 
@@ -102,25 +108,25 @@ REGLAS DE VENTA Y EXPLICITUD:
     except Exception:
       pass
 
-    # Generación de respuesta con Groq
+    # Generación con Groq
     completion = ai_client.chat.completions.create(
         model="llama-3.1-8b-instant",
         messages=messages_payload,
-        temperature=0.7,
+        temperature=0.85,
     )
     ai_response = completion.choices[0].message.content
 
     conversation_histories[sender_id].append({"role": "assistant", "content": ai_response})
 
-    # Lag humano realista: entre 8 y 15 segundos
-    delay_time = random.randint(8, 15)
-    print(f"⏳ Simulando lag humano de {delay_time} segundos para {user_name}...", flush=True)
+    # Lag humano realista (8 a 14 segundos)
+    delay_time = random.randint(8, 14)
+    print(f"⏳ Simulando respuesta humana ({delay_time}s) para {user_name}...", flush=True)
     time.sleep(delay_time)
 
-    # Enviar respuesta al cliente
+    # Responder con UN SOLO mensaje acumulado
     bot.reply_to(message_obj, ai_response)
 
-    # Copia al Admin en Modo Espejo
+    # Copia al Admin (Modo Espejo de lo que respondió Alessia)
     if ADMIN_ID and str(sender_id) != str(ADMIN_ID):
       try:
         bot.send_message(ADMIN_ID, f"🤖 [Alessia a {user_name}]:\n{ai_response}")
@@ -131,9 +137,23 @@ REGLAS DE VENTA Y EXPLICITUD:
     print(f"❌ Error en process_message_async: {e}", flush=True)
 
 
+def handle_user_burst(sender_id, chat_id, user_name, user_username):
+  """Procesa todos los mensajes juntos tras 3.5s de silencio"""
+  with buffer_lock:
+    data = user_buffers.pop(sender_id, None)
+
+  if not data:
+    return
+
+  combined_text = "\n".join(data["texts"])
+  last_message_obj = data["last_message"]
+
+  process_message_async(sender_id, chat_id, combined_text, user_name, user_username, last_message_obj)
+
+
 @app.route("/")
 def home():
-  return "Master Bot Alessia (Versión Humanizada & Protegida) 100% Operativo."
+  return "Master Bot Alessia (@Alessia_Valli_Oficial_bot) Operativo al 100%."
 
 
 @app.route("/webhook/master", methods=["POST"])
@@ -161,10 +181,20 @@ def webhook_receiver():
       if user_text.startswith('/start'):
         user_text = "Hola"
 
-      threading.Thread(
-          target=process_message_async,
-          args=(sender_id, chat_id, user_text, user_name, user_username, message)
-      ).start()
+      # Acumulador de ráfaga
+      with buffer_lock:
+        if sender_id not in user_buffers:
+          user_buffers[sender_id] = {"texts": [], "timer": None, "last_message": message}
+
+        user_buffers[sender_id]["texts"].append(user_text)
+        user_buffers[sender_id]["last_message"] = message
+
+        if user_buffers[sender_id]["timer"]:
+          user_buffers[sender_id]["timer"].cancel()
+
+        t = threading.Timer(3.5, handle_user_burst, args=(sender_id, chat_id, user_name, user_username))
+        user_buffers[sender_id]["timer"] = t
+        t.start()
 
   except Exception as e:
     print(f"❌ Error en webhook: {e}", flush=True)
