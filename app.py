@@ -29,10 +29,14 @@ bot = telebot.TeleBot(BOT_TOKEN) if BOT_TOKEN else None
 app = Flask(__name__)
 DOMAIN = "https://mis-bots-telegram.onrender.com"
 
-# Historiales de memoria y Acumulador de Ráfagas
+# Historiales de memoria, Acumulador de Ráfagas y Control de Intervención
 conversation_histories = {}
 user_buffers = {}
 buffer_lock = threading.Lock()
+
+# Control de Pausa e Intervención
+paused_users = {}       # { client_id: True/False }
+admin_msg_map = {}      # { espejo_message_id: client_id }
 
 if bot:
   try:
@@ -43,20 +47,30 @@ if bot:
 
 
 def process_message_async(sender_id, chat_id, combined_user_text, user_name, user_username, message_obj):
-  """Procesa el mensaje acumulado de Alessia con máxima sensualidad, misterio y respuesta única"""
+  """Procesa el mensaje acumulado de Alessia con máxima sensualidad, misterio e intervención manual"""
   try:
-    # Modo Espejo: Reenvía las conversaciones de clientes a la cuenta de Alessia (827166654)
+    is_paused = paused_users.get(sender_id, False)
+
+    # Modo Espejo: Reenvía las conversaciones de clientes a la cuenta de Alessia
     if ADMIN_ID and str(sender_id) != str(ADMIN_ID):
       try:
+        estado_label = "🚨 [MENSAJE DE CLIENTE - IA PAUSADA]" if is_paused else "🚨 [MENSAJE DE CLIENTE]"
         espejo_usuario = (
-            f"🚨 [MENSAJE DE CLIENTE]\n"
+            f"{estado_label}\n"
             f"👤 De: {user_name} ({user_username})\n"
             f"👤 ID: {sender_id}\n"
             f"💬 Dijo: {combined_user_text}"
         )
-        bot.send_message(ADMIN_ID, espejo_usuario)
+        sent_espejo = bot.send_message(ADMIN_ID, espejo_usuario)
+        # Mapeamos el ID del mensaje enviado al ADMIN con el ID del cliente
+        admin_msg_map[sent_espejo.message_id] = sender_id
       except Exception as e:
         print(f"⚠️ Error al enviar modo espejo: {e}", flush=True)
+
+    # Si la IA está pausada manualmente para este cliente, no responde Alessia
+    if is_paused:
+      print(f"⏸️ IA Pausada para {user_name} ({sender_id}). Esperando intervención manual.", flush=True)
+      return
 
     if not ai_client:
       return
@@ -129,7 +143,8 @@ REGLAS DE VENTA Y EXPLICITUD:
     # Copia al Admin (Modo Espejo de lo que respondió Alessia)
     if ADMIN_ID and str(sender_id) != str(ADMIN_ID):
       try:
-        bot.send_message(ADMIN_ID, f"🤖 [Alessia a {user_name}]:\n{ai_response}")
+        sent_ai = bot.send_message(ADMIN_ID, f"🤖 [Alessia a {user_name}]:\n{ai_response}")
+        admin_msg_map[sent_ai.message_id] = sender_id
       except Exception:
         pass
 
@@ -178,10 +193,41 @@ def webhook_receiver():
       user_name = message.from_user.first_name or "Usuario"
       user_username = f"@{message.from_user.username}" if message.from_user.username else "Sin alias"
 
+      # INTERVENCIÓN MANUAL DEL ADMIN VIA REPLY
+      if ADMIN_ID and str(sender_id) == str(ADMIN_ID):
+        if message.reply_to_message:
+          replied_msg_id = message.reply_to_message.message_id
+          target_client_id = admin_msg_map.get(replied_msg_id)
+
+          if target_client_id:
+            cmd = user_text.strip().lower()
+
+            # Comando para reanudar la IA
+            if cmd in ['/despausar', '/reanudar', 'despausar', 'reanudar']:
+              paused_users[target_client_id] = False
+              bot.reply_to(message, "🟢 **IA REANUDADA**. Alessia vuelve a tomar el control del chat con este cliente.")
+              return "OK", 200
+
+            # Envío de respuesta humana e interrupción de la IA
+            try:
+              bot.send_message(target_client_id, user_text)
+              paused_users[target_client_id] = True
+
+              # También guardamos lo que tú le dijiste en la memoria de la IA para mantener coherencia
+              if target_client_id not in conversation_histories:
+                conversation_histories[target_client_id] = []
+              conversation_histories[target_client_id].append({"role": "assistant", "content": user_text})
+
+              bot.reply_to(message, "🔴 **Mensaje enviado al cliente e IA PAUSADA**.\n\nPara devolverle el control a Alessia cuando termines, responde `/despausar` a este mensaje.")
+            except Exception as e:
+              bot.reply_to(message, f"❌ Error enviando mensaje al cliente: {e}")
+
+            return "OK", 200
+
       if user_text.startswith('/start'):
         user_text = "Hola"
 
-      # Acumulador de ráfaga
+      # Acumulador de ráfaga para clientes
       with buffer_lock:
         if sender_id not in user_buffers:
           user_buffers[sender_id] = {"texts": [], "timer": None, "last_message": message}
